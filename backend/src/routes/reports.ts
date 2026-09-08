@@ -1,5 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { Report } from '../models/Report';
+import { Character } from '../models/Character';
+import { sendDiscordMessage } from '../utils/discord';
 
 const router = Router();
 
@@ -31,8 +33,30 @@ router.post('/', async (req: Request, res: Response) => {
         });
 
         await newReport.save();
+
+        const author = await Character.findById(authorId);
+        const authorName = author ? `${author.firstName} ${author.lastName}` : 'Nieznana postać';
+
+        const reportIdentifier = (newReport as any).reportNumber || (newReport as any).number || `#${newReport._id.toString().slice(-6).toUpperCase()}`;
+
+        const channelId = process.env.DISCORD_CHANNEL_SFS_REPORTS;
+
+        if (channelId) {
+            sendDiscordMessage(channelId, {
+                title: `📄 Raport: ${reportIdentifier}`,
+                color: 0x3498DB,
+                fields: [
+                    { name: 'Autor', value: authorName, inline: true },
+                    { name: 'Typ raportu', value: type || 'Incident Report', inline: true },
+                    { name: 'Treść', value: description?.trim() || 'Brak opisu', inline: false },
+                ],
+                timestamp: new Date().toISOString(),
+            });
+        }
+
         return res.status(201).json(newReport);
     } catch (error) {
+        console.error('Błąd podczas tworzenia raportu:', error);
         return res.status(500).json({ message: 'Błąd podczas tworzenia raportu' });
     }
 });

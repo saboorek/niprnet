@@ -1,6 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { Absence } from '../models/Absence';
+import { Character } from '../models/Character';
 import { syncEmployeeStatuses } from '../utils/syncEmployeeStatuses';
+import { sendDiscordMessage } from '../utils/discord';
 
 const router = Router();
 
@@ -36,6 +38,28 @@ router.post('/', async (req: Request, res: Response) => {
         await newAbsence.save();
 
         await syncEmployeeStatuses();
+
+        const character = await Character.findById(characterId);
+        const characterName = character ? `${character.firstName} ${character.lastName}` : 'Nieznana postać';
+
+        const formattedStart = new Date(startDate).toLocaleDateString('pl-PL');
+        const formattedEnd = new Date(endDate).toLocaleDateString('pl-PL');
+
+        const channelId = process.env.DISCORD_CHANNEL_ABSENCE;
+
+        if (channelId) {
+            sendDiscordMessage(channelId, {
+                title: '📅 Zgłoszono nową nieobecność',
+                color: 0xE67E22,
+                fields: [
+                    { name: 'Żołnierz / Pracownik', value: characterName, inline: true },
+                    { name: 'Od', value: formattedStart, inline: true },
+                    { name: 'Do', value: formattedEnd, inline: true },
+                    { name: 'Powód', value: reason?.trim() || 'Nie podano', inline: false },
+                ],
+                timestamp: new Date().toISOString(),
+            });
+        }
 
         res.status(201).json(newAbsence);
     } catch (error) {

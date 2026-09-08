@@ -11,6 +11,10 @@ import { isDeveloper } from '../config/developers';
 
 const router = Router();
 
+const generateDoDId = (): string => {
+    return Math.floor(1000000000 + Math.random() * 9000000000).toString();
+};
+
 async function getEmptyPermissions(): Promise<IPermissions> {
     const sampleRole = await Role.findOne().lean();
     if (sampleRole?.permissions) {
@@ -27,6 +31,7 @@ async function getEmptyPermissions(): Promise<IPermissions> {
         hasHumanResourcesAccess: false,
         hasEmployeeAccess: false,
         hasStructureAccess: false,
+        hasAbsenceAccess: false,
         canEditCharacter: false,
         canEditRibbons: false,
         canAddAbsence: false,
@@ -132,8 +137,15 @@ router.post('/', isAuthenticated, async (req: Request, res: Response) => {
 
         await character.save();
 
+        // 2. Tworzymy pełną teczkę pracownika z nadanym DoD ID
         try {
-            await Employee.create({ characterId: character._id });
+            await Employee.create({
+                characterId: character._id,
+                firstName: character.firstName,
+                lastName: character.lastName,
+                doDId: generateDoDId(),
+                status: 'active'
+            });
         } catch (empErr) {
             console.error('[POST /characters] Uwaga: Teczka zostanie utworzona przy otwarciu listy HR:', empErr);
         }
@@ -218,19 +230,40 @@ router.put('/:id/avatar', isAuthenticated, async (req: Request, res: Response) =
     try {
         const user = req.user as any;
         const { avatarUrl } = req.body;
+        const targetId = req.params.id;
 
-        const character = await Character.findOneAndUpdate(
-            { _id: req.params.id, discordId: user.id },
-            { avatarUrl: avatarUrl?.trim() || null },
-            { returnDocument: 'after', runValidators: true }
-        );
+        // 1. Sprawdzamy, czy przekazane ID to bezpośrednio Character._id należący do użytkownika
+        let character = await Character.findOne({ _id: targetId, discordId: user.id });
 
-        if (!character) return res.status(404).json({ message: 'Postać nie znaleziona' });
+        // 2. Jeśli nie znaleziono, a użytkownik ma uprawnienia do edycji postaci (np. Admin/HR),
+        // szukamy postaci bez sprawdzania discordId (obsługa edycji innych graczy)
+        if (!character) {
+            const hasEditPerm = user.permissions?.canEditCharacter || user.permissions?.hasAdminAccess;
+            if (hasEditPerm) {
+                character = await Character.findById(targetId);
+            }
+        }
+
+        // 3. Jeśli nadal brak postaci, sprawdzamy czy przekazane ID nie jest czasem ID teczki Employee
+        if (!character) {
+            const emp = await Employee.findById(targetId);
+            if (emp) {
+                character = await Character.findById(emp.characterId);
+            }
+        }
+
+        if (!character) {
+            return res.status(404).json({ message: 'Nie znaleziono postaci dla podanego ID' });
+        }
+
+        // Zapisujemy nowy avatar
+        character.avatarUrl = avatarUrl?.trim() || null;
+        await character.save();
 
         res.json(character);
     } catch (err) {
         console.error(`[PUT /characters/${req.params.id}/avatar]`, err);
-        res.status(500).json({ message: 'Błąd serwera' });
+        res.status(500).json({ message: 'Błąd serwera podczas aktualizacji avatara' });
     }
 });
 

@@ -11,7 +11,8 @@ const generateDoDId = (): string => {
     return Math.floor(1000000000 + Math.random() * 9000000000).toString();
 };
 
-router.get('/', isAuthenticated, requirePermission('hasHumanResourcesAccess'), async (_req: Request, res: Response) => {
+// Dostępny dla każdego zalogowanego (potrzebny dla Dashboard i StructurePage)
+router.get('/', isAuthenticated, async (_req: Request, res: Response) => {
     try {
         const characters = await Character.find().populate('roles').lean();
         const employees = await Employee.find().lean();
@@ -32,7 +33,7 @@ router.get('/', isAuthenticated, requirePermission('hasHumanResourcesAccess'), a
                                 status: 'active'
                             } as any
                         },
-                        { upsert: true, new: true, setDefaultsOnInsert: true }
+                        { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
                     ).lean();
 
                     if (newEmp) {
@@ -75,6 +76,7 @@ router.get('/', isAuthenticated, requirePermission('hasHumanResourcesAccess'), a
     }
 });
 
+// Zapis teczki - chroniony uprawnieniem HR
 router.put('/:characterId', isAuthenticated, requirePermission('hasHumanResourcesAccess'), async (req: Request, res: Response) => {
     try {
         const { characterId } = req.params;
@@ -89,22 +91,20 @@ router.put('/:characterId', isAuthenticated, requirePermission('hasHumanResource
         }
 
         const actualCharacterId = targetEmployee.characterId;
+        const character = await Character.findById(actualCharacterId);
 
-        if (rank) {
+        if (rank && character) {
             const newRankRole = await Role.findOne({ name: rank, type: 'rank' });
             if (newRankRole) {
-                const character = await Character.findById(actualCharacterId);
-                if (character) {
-                    const allRanks = await Role.find({ type: 'rank' }).select('_id');
-                    const rankIdsHex = allRanks.map(r => r._id.toString());
+                const allRanks = await Role.find({ type: 'rank' }).select('_id');
+                const rankIdsHex = allRanks.map(r => r._id.toString());
 
-                    const currentRoles = (character.roles || []).map(r => r.toString());
-                    const filteredRoles = currentRoles.filter(rId => !rankIdsHex.includes(rId));
-                    filteredRoles.push(newRankRole._id.toString());
+                const currentRoles = (character.roles || []).map(r => r.toString());
+                const filteredRoles = currentRoles.filter(rId => !rankIdsHex.includes(rId));
+                filteredRoles.push(newRankRole._id.toString());
 
-                    character.roles = filteredRoles as any;
-                    await character.save();
-                }
+                character.roles = filteredRoles as any;
+                await character.save();
             }
         }
 
@@ -117,10 +117,21 @@ router.put('/:characterId', isAuthenticated, requirePermission('hasHumanResource
             sectionId: sectionId || null,
         };
 
+        // Automatyczne uzupełnienie brakujących pól dla starszych wpisów z bazy
+        if (!targetEmployee.firstName && character?.firstName) {
+            updateFields.firstName = character.firstName;
+        }
+        if (!targetEmployee.lastName && character?.lastName) {
+            updateFields.lastName = character.lastName;
+        }
+        if (!targetEmployee.doDId) {
+            updateFields.doDId = generateDoDId();
+        }
+
         const updatedEmployee = await Employee.findOneAndUpdate(
             { _id: targetEmployee._id },
             { $set: updateFields },
-            { new: true, upsert: true, setDefaultsOnInsert: true }
+            { returnDocument: 'after' }
         );
 
         res.json(updatedEmployee);
