@@ -10,6 +10,7 @@ export interface IStructureElement {
 export interface IStructureSection {
     _id?: string;
     name: string;
+    icon?: string | null;
     commanderId?: string | null;
     deputyCommanderId?: string | null;
     elements: IStructureElement[];
@@ -17,6 +18,7 @@ export interface IStructureSection {
 
 export interface IStructureSquadron extends Document {
     name: string;
+    icon?: string | null;
     commanderId?: string | null;
     deputyCommanderId?: string | null;
     sections: IStructureSection[];
@@ -30,6 +32,7 @@ const ElementSchema = new Schema<IStructureElement>({
 
 const SectionSchema = new Schema<IStructureSection>({
     name: { type: String, required: true },
+    icon: { type: String, default: null },
     commanderId: { type: String, default: null },
     deputyCommanderId: { type: String, default: null },
     elements: [ElementSchema],
@@ -37,6 +40,7 @@ const SectionSchema = new Schema<IStructureSection>({
 
 const SquadronSchema = new Schema<IStructureSquadron>({
     name: { type: String, required: true, unique: true },
+    icon: { type: String, default: null },
     commanderId: { type: String, default: null },
     deputyCommanderId: { type: String, default: null },
     sections: [SectionSchema],

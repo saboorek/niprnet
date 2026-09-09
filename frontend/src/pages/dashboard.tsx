@@ -5,6 +5,7 @@ import { faDiscord } from "@fortawesome/free-brands-svg-icons";
 import { faCircle, faAward, faIdCard, faGraduationCap, faUserShield, faPhone, faSitemap } from "@fortawesome/free-solid-svg-icons";
 import config from "../utils/config.ts";
 import { ribbonsMap } from '../utils/ribbonsMap.ts';
+import { squadronIconsMap } from '../utils/squadronIcons.ts';
 
 const rankIcons = import.meta.glob<{ default: string }>('../assets/icons/*.{png,jpg,jpeg,svg,webp}', {
     eager: true,
@@ -13,11 +14,13 @@ const rankIcons = import.meta.glob<{ default: string }>('../assets/icons/*.{png,
 interface StructureSection {
     _id: string;
     name: string;
+    icon?: string | null;
 }
 
 interface StructureSquadron {
     _id: string;
     name: string;
+    icon?: string | null;
     sections: StructureSection[];
 }
 
@@ -154,6 +157,21 @@ export const Dashboard = () => {
         return sec ? `${sq.name} ➔ ${sec.name}` : sq.name;
     };
 
+    // Pobieranie ikony przypisanej SEKCJI (lotu)
+    const getSectionIconUrl = (): string | null => {
+        if (!employee?.squadronId || !employee?.sectionId) return null;
+        const sq = squadrons.find(s => String(s._id) === String(employee.squadronId));
+        if (!sq) return null;
+
+        const sec = sq.sections?.find(s => String(s._id) === String(employee.sectionId));
+        if (sec?.icon && squadronIconsMap[sec.icon]) {
+            return squadronIconsMap[sec.icon];
+        }
+        return null;
+    };
+
+    const sectionIconUrl = getSectionIconUrl();
+
     return (
         <div className="p-6 space-y-6">
             <div className="flex gap-4 flex-wrap">
@@ -239,7 +257,7 @@ export const Dashboard = () => {
                                         )}
                                     </div>
 
-                                    {/* DRUGI WIERSZ: Struktura organizacyjna (poniżej stopnia i DoD ID) */}
+                                    {/* DRUGI WIERSZ: Struktura organizacyjna */}
                                     {getStructurePath() && (
                                         <div className="flex justify-center md:justify-start">
                                             <div className="inline-flex items-center gap-1.5 text-amber-400 font-semibold text-xs bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded shadow-sm">
@@ -249,6 +267,17 @@ export const Dashboard = () => {
                                         </div>
                                     )}
                                 </div>
+
+                                {/* LOGO / OZNACZENIE SEKCJI */}
+                                {sectionIconUrl && (
+                                    <div className="shrink-0 flex items-center justify-center p-2 bg-gray-900/80 border border-gray-700/60 rounded-xl shadow-md">
+                                        <img
+                                            src={sectionIconUrl}
+                                            alt="Oznaczenie sekcji"
+                                            className="w-16 h-16 object-contain"
+                                        />
+                                    </div>
+                                )}
                             </div>
 
                             <div className="pt-2 border-t border-gray-700/60">

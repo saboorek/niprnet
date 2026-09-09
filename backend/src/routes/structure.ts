@@ -14,10 +14,11 @@ router.get('/', isAuthenticated, async (_req: Request, res: Response) => {
     }
 });
 
+// TWORZENIE ESKADRY
 router.post('/squadron', isAuthenticated, requirePermission('canAddStructure'), async (req: Request, res: Response) => {
     try {
-        const { name } = req.body;
-        const squadron = new Structure({ name, sections: [] });
+        const { name, icon } = req.body;
+        const squadron = new Structure({ name, icon: icon || null, sections: [] });
         await squadron.save();
         res.status(201).json(squadron);
     } catch (err) {
@@ -25,19 +26,63 @@ router.post('/squadron', isAuthenticated, requirePermission('canAddStructure'), 
     }
 });
 
+// EDYCJA ESKADRY
+router.put('/squadron/:id', isAuthenticated, requirePermission('canEditStructure'), async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { name, icon } = req.body;
+
+        const squadron = await Structure.findByIdAndUpdate(
+            id,
+            { name, icon: icon || null },
+            { new: true }
+        );
+
+        if (!squadron) return res.status(404).json({ message: 'Nie znaleziono eskadry' });
+        res.json(squadron);
+    } catch (err) {
+        res.status(500).json({ message: 'Błąd edycji eskadry', error: err });
+    }
+});
+
+// TWORZENIE SEKCJI (z ikoną)
 router.post('/squadron/:squadronId/section', isAuthenticated, requirePermission('canAddStructure'), async (req: Request, res: Response) => {
     try {
         const { squadronId } = req.params;
-        const { name } = req.body;
+        const { name, icon } = req.body;
 
         const squadron = await Structure.findById(squadronId);
         if (!squadron) return res.status(404).json({ message: 'Nie znaleziono eskadry' });
 
-        squadron.sections.push({ name, elements: [] });
+        squadron.sections.push({ name, icon: icon || null, elements: [] });
         await squadron.save();
         res.json(squadron);
     } catch (err) {
         res.status(500).json({ message: 'Błąd dodawania sekcji', error: err });
+    }
+});
+
+// EDYCJA SEKCJI (Nazwa + Ikona)
+router.put('/section/:sectionId', isAuthenticated, requirePermission('canEditStructure'), async (req: Request, res: Response) => {
+    try {
+        const { sectionId } = req.params;
+        const { name, icon } = req.body;
+
+        const squadron = await Structure.findOneAndUpdate(
+            { 'sections._id': sectionId },
+            {
+                $set: {
+                    'sections.$.name': name,
+                    'sections.$.icon': icon || null
+                }
+            },
+            { new: true }
+        );
+
+        if (!squadron) return res.status(404).json({ message: 'Nie znaleziono sekcji' });
+        res.json(squadron);
+    } catch (err) {
+        res.status(500).json({ message: 'Błąd edycji sekcji', error: err });
     }
 });
 

@@ -11,12 +11,14 @@ import {
     faUserCheck,
     faTrash,
     faUsers,
-    faUser
+    faUser,
+    faPen
 } from '@fortawesome/free-solid-svg-icons';
 import { toast } from 'sonner';
 import config from '../../utils/config.ts';
 import { usePermission } from '../../hooks/usePermission.ts';
 import { PageHeader } from '../../components/ui/PageHeader.tsx';
+import { availableSquadronIconNames, squadronIconsMap } from '../../utils/squadronIcons.ts';
 
 interface EmployeeOption {
     characterId: string;
@@ -30,6 +32,7 @@ interface EmployeeOption {
 interface StructureSection {
     _id: string;
     name: string;
+    icon?: string | null;
     commanderId?: string | null;
     deputyCommanderId?: string | null;
 }
@@ -37,6 +40,7 @@ interface StructureSection {
 interface StructureSquadron {
     _id: string;
     name: string;
+    icon?: string | null;
     commanderId?: string | null;
     deputyCommanderId?: string | null;
     sections: StructureSection[];
@@ -56,6 +60,21 @@ export const StructurePage = () => {
     const [showSquadronModal, setShowSquadronModal] = useState(false);
     const [showSectionModal, setShowSectionModal] = useState<string | null>(null);
     const [newUnitName, setNewUnitName] = useState('');
+    const [selectedIcon, setSelectedIcon] = useState<string | null>(null);
+
+    const [editModal, setEditModal] = useState<{
+        open: boolean;
+        type: 'squadron' | 'section';
+        targetId: string;
+        name: string;
+        icon: string | null;
+    }>({
+        open: false,
+        type: 'squadron',
+        targetId: '',
+        name: '',
+        icon: null
+    });
 
     const [leadershipModal, setLeadershipModal] = useState<{
         open: boolean;
@@ -119,12 +138,13 @@ export const StructurePage = () => {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
-                body: JSON.stringify({ name: newUnitName })
+                body: JSON.stringify({ name: newUnitName, icon: selectedIcon })
             });
 
             if (res.ok) {
                 toast.success('Utworzono Eskadrę');
                 setNewUnitName('');
+                setSelectedIcon(null);
                 setShowSquadronModal(false);
                 fetchData();
             }
@@ -140,14 +160,41 @@ export const StructurePage = () => {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
-                body: JSON.stringify({ name: newUnitName })
+                body: JSON.stringify({ name: newUnitName, icon: selectedIcon })
             });
 
             if (res.ok) {
                 toast.success('Dodano Sekcję/Lot');
                 setNewUnitName('');
+                setSelectedIcon(null);
                 setShowSectionModal(null);
                 fetchData();
+            }
+        } catch {
+            toast.error('Błąd serwera');
+        }
+    };
+
+    const handleSaveEdit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        const endpoint = editModal.type === 'squadron'
+            ? `${config.URL}/structure/squadron/${editModal.targetId}`
+            : `${config.URL}/structure/section/${editModal.targetId}`;
+
+        try {
+            const res = await fetch(endpoint, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ name: editModal.name, icon: editModal.icon })
+            });
+
+            if (res.ok) {
+                toast.success(`Zaktualizowano ${editModal.type === 'squadron' ? 'Eskadrę' : 'Sekcję'}`);
+                setEditModal({ open: false, type: 'squadron', targetId: '', name: '', icon: null });
+                fetchData();
+            } else {
+                toast.error('Błąd podczas aktualizacji');
             }
         } catch {
             toast.error('Błąd serwera');
@@ -206,7 +253,7 @@ export const StructurePage = () => {
 
                 {canAddStructure && (
                     <button
-                        onClick={() => { setNewUnitName(''); setShowSquadronModal(true); }}
+                        onClick={() => { setNewUnitName(''); setSelectedIcon(null); setShowSquadronModal(true); }}
                         className="flex items-center gap-2 bg-amber-600 hover:bg-amber-500 text-white font-semibold text-sm px-4 py-2.5 rounded-xl transition-all shadow-lg hover:shadow-amber-600/20"
                     >
                         <FontAwesomeIcon icon={faPlus} />
@@ -234,40 +281,62 @@ export const StructurePage = () => {
                                         <button className="text-stone-400 hover:text-amber-400 transition-colors">
                                             <FontAwesomeIcon icon={isCollapsed ? faChevronRight : faChevronDown} className="text-base" />
                                         </button>
-                                        <div>
-                                            <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                                                <FontAwesomeIcon icon={faSitemap} className="text-amber-500" />
-                                                {sq.name}
-                                            </h2>
-                                            <div className="flex items-center gap-4 text-xs text-stone-400 mt-1">
-                                                <span>Dowódca: <strong className="text-amber-400">{getEmployeeName(sq.commanderId)}</strong></span>
-                                                <span>•</span>
-                                                <span>Zastępca: <strong className="text-stone-200">{getEmployeeName(sq.deputyCommanderId)}</strong></span>
+                                        <div className="flex items-center gap-4">
+                                            {sq.icon && squadronIconsMap[sq.icon] && (
+                                                <img src={squadronIconsMap[sq.icon]} alt={sq.name} className="w-12 h-12 object-contain shrink-0" />
+                                            )}
+                                            <div>
+                                                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                                                    {!sq.icon && <FontAwesomeIcon icon={faSitemap} className="text-amber-500" />}
+                                                    {sq.name}
+                                                </h2>
+                                                <div className="flex items-center gap-4 text-xs text-stone-400 mt-1">
+                                                    <span>Dowódca: <strong className="text-amber-400">{getEmployeeName(sq.commanderId)}</strong></span>
+                                                    <span>•</span>
+                                                    <span>Zastępca: <strong className="text-stone-200">{getEmployeeName(sq.deputyCommanderId)}</strong></span>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
 
                                     <div className="flex items-center gap-2 shrink-0">
                                         {canEditStructure && (
-                                            <button
-                                                onClick={() => setLeadershipModal({
-                                                    open: true,
-                                                    level: 'squadron',
-                                                    targetId: sq._id,
-                                                    title: sq.name,
-                                                    commanderId: sq.commanderId || '',
-                                                    deputyCommanderId: sq.deputyCommanderId || ''
-                                                })}
-                                                className="px-3 py-1.5 bg-stone-800 hover:bg-stone-700 text-stone-200 rounded-lg text-xs font-semibold border border-stone-700 transition-colors"
-                                            >
-                                                <FontAwesomeIcon icon={faUserShield} className="mr-1 text-amber-500" />
-                                                Ustaw strukturę
-                                            </button>
+                                            <>
+                                                <button
+                                                    onClick={() => setEditModal({
+                                                        open: true,
+                                                        type: 'squadron',
+                                                        targetId: sq._id,
+                                                        name: sq.name,
+                                                        icon: sq.icon || null
+                                                    })}
+                                                    className="px-3 py-1.5 bg-stone-800 hover:bg-stone-700 text-stone-200 rounded-lg text-xs font-semibold border border-stone-700 transition-colors"
+                                                    title="Edytuj Eskadrę"
+                                                >
+                                                    <FontAwesomeIcon icon={faPen} className="mr-1 text-amber-500" />
+                                                    Edytuj
+                                                </button>
+
+                                                <button
+                                                    onClick={() => setLeadershipModal({
+                                                        open: true,
+                                                        level: 'squadron',
+                                                        targetId: sq._id,
+                                                        title: sq.name,
+                                                        commanderId: sq.commanderId || '',
+                                                        deputyCommanderId: sq.deputyCommanderId || ''
+                                                    })}
+                                                    className="px-3 py-1.5 bg-stone-800 hover:bg-stone-700 text-stone-200 rounded-lg text-xs font-semibold border border-stone-700 transition-colors"
+                                                >
+                                                    <FontAwesomeIcon icon={faUserShield} className="mr-1 text-amber-500" />
+                                                    Ustaw strukturę
+                                                </button>
+                                            </>
                                         )}
 
                                         {canAddStructure && (
                                             <button
-                                                onClick={() => { setNewUnitName(''); setShowSectionModal(sq._id); }}
+                                                onClick={() => { setNewUnitName(''); setSelectedIcon(null); setShowSectionModal(sq._id); }}
                                                 className="px-3 py-1.5 bg-amber-600/20 hover:bg-amber-600/30 text-amber-400 rounded-lg text-xs font-semibold border border-amber-500/30 transition-colors"
                                             >
                                                 <FontAwesomeIcon icon={faPlus} className="mr-1" />
@@ -299,31 +368,53 @@ export const StructurePage = () => {
                                                 return (
                                                     <div key={sec._id} className="bg-stone-950/60 border border-stone-800/80 rounded-lg p-4 space-y-4">
                                                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-stone-800/60 pb-3">
-                                                            <div>
-                                                                <h3 className="text-sm font-bold text-stone-200 flex items-center gap-2">
-                                                                    <FontAwesomeIcon icon={faLayerGroup} className="text-blue-400 text-xs" />
-                                                                    {sec.name}
-                                                                </h3>
-                                                                <p className="text-[11px] text-stone-400 mt-0.5">
-                                                                    Dowódca Sekcji: <strong className="text-stone-200">{getEmployeeName(sec.commanderId)}</strong> | Zastępca: <strong className="text-stone-300">{getEmployeeName(sec.deputyCommanderId)}</strong>
-                                                                </p>
+                                                            <div className="flex items-center gap-3">
+                                                                {sec.icon && squadronIconsMap[sec.icon] && (
+                                                                    <img src={squadronIconsMap[sec.icon]} alt={sec.name} className="w-9 h-9 object-contain shrink-0" />
+                                                                )}
+                                                                <div>
+                                                                    <h3 className="text-sm font-bold text-stone-200 flex items-center gap-2">
+                                                                        {!sec.icon && <FontAwesomeIcon icon={faLayerGroup} className="text-blue-400 text-xs" />}
+                                                                        {sec.name}
+                                                                    </h3>
+                                                                    <p className="text-[11px] text-stone-400 mt-0.5">
+                                                                        Dowódca Sekcji: <strong className="text-stone-200">{getEmployeeName(sec.commanderId)}</strong> | Zastępca: <strong className="text-stone-300">{getEmployeeName(sec.deputyCommanderId)}</strong>
+                                                                    </p>
+                                                                </div>
                                                             </div>
 
                                                             <div className="flex items-center gap-2">
                                                                 {canEditStructure && (
-                                                                    <button
-                                                                        onClick={() => setLeadershipModal({
-                                                                            open: true,
-                                                                            level: 'section',
-                                                                            targetId: sec._id,
-                                                                            title: sec.name,
-                                                                            commanderId: sec.commanderId || '',
-                                                                            deputyCommanderId: sec.deputyCommanderId || ''
-                                                                        })}
-                                                                        className="px-2.5 py-1 bg-stone-800 hover:bg-stone-700 text-stone-300 rounded text-xs transition-colors"
-                                                                    >
-                                                                        Ustaw strukturę
-                                                                    </button>
+                                                                    <>
+                                                                        <button
+                                                                            onClick={() => setEditModal({
+                                                                                open: true,
+                                                                                type: 'section',
+                                                                                targetId: sec._id,
+                                                                                name: sec.name,
+                                                                                icon: sec.icon || null
+                                                                            })}
+                                                                            className="px-2.5 py-1 bg-stone-800 hover:bg-stone-700 text-stone-300 rounded text-xs transition-colors"
+                                                                            title="Edytuj Sekcję"
+                                                                        >
+                                                                            <FontAwesomeIcon icon={faPen} className="mr-1 text-amber-500" />
+                                                                            Edytuj
+                                                                        </button>
+
+                                                                        <button
+                                                                            onClick={() => setLeadershipModal({
+                                                                                open: true,
+                                                                                level: 'section',
+                                                                                targetId: sec._id,
+                                                                                title: sec.name,
+                                                                                commanderId: sec.commanderId || '',
+                                                                                deputyCommanderId: sec.deputyCommanderId || ''
+                                                                            })}
+                                                                            className="px-2.5 py-1 bg-stone-800 hover:bg-stone-700 text-stone-300 rounded text-xs transition-colors"
+                                                                        >
+                                                                            Ustaw strukturę
+                                                                        </button>
+                                                                    </>
                                                                 )}
 
                                                                 {canRemoveStructure && (
@@ -338,7 +429,7 @@ export const StructurePage = () => {
                                                             </div>
                                                         </div>
 
-                                                        {/* PRZYPISANI PRACOWNICY / PERSONEL */}
+                                                        {/* PERSONEL */}
                                                         <div className="space-y-2">
                                                             <h4 className="text-[11px] font-semibold text-stone-400 flex items-center gap-1.5 uppercase tracking-wider">
                                                                 <FontAwesomeIcon icon={faUsers} className="text-amber-500/80 text-[10px]" />
@@ -371,6 +462,82 @@ export const StructurePage = () => {
                             </div>
                         );
                     })}
+                </div>
+            )}
+
+            {/* MODAL EDYCJI (ESKADRA / SEKCJA) */}
+            {editModal.open && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+                    <div className="bg-stone-900 border border-stone-800 rounded-xl shadow-2xl w-full max-w-md p-6 space-y-4">
+                        <div className="flex items-center justify-between border-b border-stone-800 pb-3">
+                            <h3 className="text-base font-bold text-white">
+                                Edytuj {editModal.type === 'squadron' ? 'Eskadrę' : 'Sekcję'}
+                            </h3>
+                            <button onClick={() => setEditModal(prev => ({ ...prev, open: false }))} className="text-stone-400 hover:text-white">
+                                <FontAwesomeIcon icon={faTimes} />
+                            </button>
+                        </div>
+                        <form onSubmit={handleSaveEdit} className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-semibold text-stone-400 mb-1">Nazwa</label>
+                                <input
+                                    type="text"
+                                    value={editModal.name}
+                                    onChange={e => setEditModal(prev => ({ ...prev, name: e.target.value }))}
+                                    className="w-full bg-stone-800 border border-stone-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500"
+                                    required
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-semibold text-stone-400 mb-1">Oznaczenie / Logo (Opcjonalnie)</label>
+                                <div className="grid grid-cols-4 gap-2 bg-stone-800/80 p-3 rounded-lg border border-stone-700 max-h-48 overflow-y-auto">
+                                    <button
+                                        type="button"
+                                        onClick={() => setEditModal(prev => ({ ...prev, icon: null }))}
+                                        className={`flex items-center justify-center p-2 rounded-lg border transition-all text-xs ${
+                                            editModal.icon === null
+                                                ? 'border-amber-500 bg-amber-600/30 text-white font-bold'
+                                                : 'border-stone-700 hover:bg-stone-700 text-stone-400'
+                                        }`}
+                                    >
+                                        Brak
+                                    </button>
+                                    {availableSquadronIconNames.map(iconName => (
+                                        <button
+                                            key={iconName}
+                                            type="button"
+                                            onClick={() => setEditModal(prev => ({ ...prev, icon: iconName }))}
+                                            className={`flex items-center justify-center p-2 rounded-lg border transition-all ${
+                                                editModal.icon === iconName
+                                                    ? 'border-amber-500 bg-amber-600/30 scale-105'
+                                                    : 'border-stone-700 hover:bg-stone-700'
+                                            }`}
+                                        >
+                                            <img
+                                                src={squadronIconsMap[iconName]}
+                                                alt={iconName}
+                                                className="w-9 h-9 object-contain"
+                                            />
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="flex justify-end gap-2 pt-2 border-t border-stone-800">
+                                <button
+                                    type="button"
+                                    onClick={() => setEditModal(prev => ({ ...prev, open: false }))}
+                                    className="px-4 py-2 bg-stone-800 text-stone-300 rounded-lg text-xs"
+                                >
+                                    Anuluj
+                                </button>
+                                <button type="submit" className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-semibold rounded-lg text-xs">
+                                    Zapisz zmiany
+                                </button>
+                            </div>
+                        </form>
+                    </div>
                 </div>
             )}
 
@@ -457,15 +624,54 @@ export const StructurePage = () => {
                             if (showSquadronModal) handleCreateSquadron(e);
                             if (showSectionModal) handleCreateSection(e, showSectionModal);
                         }} className="space-y-4">
-                            <input
-                                type="text"
-                                value={newUnitName}
-                                onChange={e => setNewUnitName(e.target.value)}
-                                placeholder="Nazwa..."
-                                className="w-full bg-stone-800 border border-stone-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500"
-                                required
-                            />
-                            <div className="flex justify-end gap-2">
+                            <div>
+                                <label className="block text-xs font-semibold text-stone-400 mb-1">Nazwa</label>
+                                <input
+                                    type="text"
+                                    value={newUnitName}
+                                    onChange={e => setNewUnitName(e.target.value)}
+                                    placeholder="Nazwa..."
+                                    className="w-full bg-stone-800 border border-stone-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500"
+                                    required
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-semibold text-stone-400 mb-1">Oznaczenie / Logo (Opcjonalnie)</label>
+                                <div className="grid grid-cols-4 gap-2 bg-stone-800/80 p-3 rounded-lg border border-stone-700 max-h-48 overflow-y-auto">
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedIcon(null)}
+                                        className={`flex items-center justify-center p-2 rounded-lg border transition-all text-xs ${
+                                            selectedIcon === null
+                                                ? 'border-amber-500 bg-amber-600/30 text-white font-bold'
+                                                : 'border-stone-700 hover:bg-stone-700 text-stone-400'
+                                        }`}
+                                    >
+                                        Brak
+                                    </button>
+                                    {availableSquadronIconNames.map(iconName => (
+                                        <button
+                                            key={iconName}
+                                            type="button"
+                                            onClick={() => setSelectedIcon(iconName)}
+                                            className={`flex items-center justify-center p-2 rounded-lg border transition-all ${
+                                                selectedIcon === iconName
+                                                    ? 'border-amber-500 bg-amber-600/30 scale-105'
+                                                    : 'border-stone-700 hover:bg-stone-700'
+                                            }`}
+                                        >
+                                            <img
+                                                src={squadronIconsMap[iconName]}
+                                                alt={iconName}
+                                                className="w-9 h-9 object-contain"
+                                            />
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="flex justify-end gap-2 pt-2 border-t border-stone-800">
                                 <button
                                     type="button"
                                     onClick={() => { setShowSquadronModal(false); setShowSectionModal(null); }}
