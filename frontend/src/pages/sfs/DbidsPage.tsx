@@ -9,12 +9,14 @@ import {
     faShieldAlt,
     faCalendarAlt,
     faCheck,
-    faTrash
+    faTrash,
+    faInfoCircle
 } from '@fortawesome/free-solid-svg-icons';
 import { toast } from 'sonner';
 import config from '../../utils/config.ts';
 import { usePermission } from '../../hooks/usePermission.ts';
 import { PageHeader } from '../../components/ui/PageHeader.tsx';
+import { Pagination } from '../../components/ui/Pagination.tsx';
 
 interface EmployeeOption {
     characterId: string;
@@ -37,6 +39,8 @@ interface DbidsEntry {
     notes?: string;
 }
 
+type PassTypeFilter = 'ALL' | 'CAC' | 'VCC';
+
 export const DbidsPage = () => {
     const canAddPass = usePermission('canAddPass');
     const canRemovePass = usePermission('canRemovePass');
@@ -45,8 +49,15 @@ export const DbidsPage = () => {
     const [employees, setEmployees] = useState<EmployeeOption[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
+    const [typeFilter, setTypeFilter] = useState<PassTypeFilter>('ALL');
+
+    // Paginacja
+    const [currentPage, setCurrentPage] = useState(1);
+    const ITEMS_PER_PAGE = 10;
 
     const [showModal, setShowModal] = useState(false);
+    const [viewNote, setViewNote] = useState<{ title: string; note: string } | null>(null);
+
     const [passType, setPassType] = useState<'CAC' | 'VCC'>('CAC');
     const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
 
@@ -183,17 +194,45 @@ export const DbidsPage = () => {
         }
     };
 
-    const filteredEntries = entries.filter(e =>
-        e.holderName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        e.passNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        e.rankOrStatus.toLowerCase().includes(searchQuery.toLowerCase())
+    // Zliczanie dla statystyk
+    const totalCount = entries.length;
+    const cacCount = entries.filter(e => e.passType === 'CAC').length;
+    const vccCount = entries.filter(e => e.passType === 'VCC').length;
+
+    // Filtrowanie wpisów
+    const filteredEntries = entries.filter(e => {
+        const matchesSearch =
+            e.holderName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            e.passNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            e.rankOrStatus.toLowerCase().includes(searchQuery.toLowerCase());
+
+        const matchesType = typeFilter === 'ALL' || e.passType === typeFilter;
+
+        return matchesSearch && matchesType;
+    });
+
+    // Kalkulacja paginacji
+    const totalPages = Math.max(1, Math.ceil(filteredEntries.length / ITEMS_PER_PAGE));
+    const paginatedEntries = filteredEntries.slice(
+        (currentPage - 1) * ITEMS_PER_PAGE,
+        currentPage * ITEMS_PER_PAGE
     );
+
+    const handleFilterChange = (filter: PassTypeFilter) => {
+        setTypeFilter(filter);
+        setCurrentPage(1);
+    };
+
+    const handleSearchChange = (val: string) => {
+        setSearchQuery(val);
+        setCurrentPage(1);
+    };
 
     return (
         <div className="max-w-7xl mx-auto space-y-6 p-6">
             {/* Nagłówek i Przycisk Dodawania */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <PageHeader title="DBIDS — Defense Biometric Identification System" />
+                <PageHeader title="Defense Biometric Identification Data System" />
 
                 {canAddPass && (
                     <button
@@ -206,7 +245,7 @@ export const DbidsPage = () => {
                 )}
             </div>
 
-            {/* Pasek Wyszukiwania i Statystyki */}
+            {/* Pasek Wyszukiwania i Przycisków Filtrujących */}
             <div className="bg-stone-900 border border-stone-800 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div className="relative w-full sm:w-80">
                     <FontAwesomeIcon icon={faSearch} className="absolute left-3.5 top-3 text-stone-500 text-sm" />
@@ -214,91 +253,156 @@ export const DbidsPage = () => {
                         type="text"
                         placeholder="Szukaj po nazwisku, nr przepustki..."
                         value={searchQuery}
-                        onChange={e => setSearchQuery(e.target.value)}
+                        onChange={e => handleSearchChange(e.target.value)}
                         className="w-full bg-stone-950 border border-stone-800 text-stone-200 text-sm rounded-lg pl-10 pr-4 py-2 outline-none focus:border-amber-600/60"
                     />
                 </div>
 
-                <div className="flex items-center gap-4 text-xs text-stone-400">
-                    <span>Łącznie wpisów: <strong className="text-white">{entries.length}</strong></span>
-                    <span>•</span>
-                    <span>CAC: <strong className="text-amber-400">{entries.filter(e => e.passType === 'CAC').length}</strong></span>
-                    <span>•</span>
-                    <span>VCC: <strong className="text-blue-400">{entries.filter(e => e.passType === 'VCC').length}</strong></span>
+                {/* Połączone filtry z licznikami */}
+                <div className="flex items-center gap-1.5 text-xs bg-stone-950 p-1.5 rounded-lg border border-stone-800/80">
+                    <button
+                        onClick={() => handleFilterChange('ALL')}
+                        className={`px-3 py-1.5 rounded-md transition-all font-medium ${
+                            typeFilter === 'ALL'
+                                ? 'bg-stone-800 text-white shadow-sm font-semibold'
+                                : 'text-stone-400 hover:text-stone-200 hover:bg-stone-900/50'
+                        }`}
+                    >
+                        Wszystkie: <strong className="text-white ml-0.5">{totalCount}</strong>
+                    </button>
+                    <span className="text-stone-700">|</span>
+                    <button
+                        onClick={() => handleFilterChange('CAC')}
+                        className={`px-3 py-1.5 rounded-md transition-all font-medium ${
+                            typeFilter === 'CAC'
+                                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 shadow-sm font-semibold'
+                                : 'text-stone-400 hover:text-amber-400 hover:bg-stone-900/50'
+                        }`}
+                    >
+                        CAC: <strong className="text-amber-400 ml-0.5">{cacCount}</strong>
+                    </button>
+                    <span className="text-stone-700">|</span>
+                    <button
+                        onClick={() => handleFilterChange('VCC')}
+                        className={`px-3 py-1.5 rounded-md transition-all font-medium ${
+                            typeFilter === 'VCC'
+                                ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30 shadow-sm font-semibold'
+                                : 'text-stone-400 hover:text-blue-400 hover:bg-stone-900/50'
+                        }`}
+                    >
+                        VCC: <strong className="text-blue-400 ml-0.5">{vccCount}</strong>
+                    </button>
                 </div>
             </div>
 
             {/* DUŻA TABELA DBIDS */}
-            <div className="bg-stone-900 border border-stone-800 rounded-xl overflow-hidden shadow-xl">
+            <div className="bg-stone-900 border border-stone-800 rounded-xl overflow-hidden shadow-xl p-4">
                 {loading ? (
                     <p className="text-stone-400 text-center py-12 text-sm italic">Ładowanie bazy przepustek DBIDS...</p>
                 ) : filteredEntries.length > 0 ? (
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left text-sm text-stone-300">
-                            <thead className="bg-stone-950 text-stone-400 uppercase text-[11px] font-semibold tracking-wider border-b border-stone-800">
-                            <tr>
-                                <th className="py-3.5 px-4">Typ</th>
-                                <th className="py-3.5 px-4">Nr Przepustki / DoD ID</th>
-                                <th className="py-3.5 px-4">Imię i Nazwisko</th>
-                                <th className="py-3.5 px-4">Stopień / Rola</th>
-                                <th className="py-3.5 px-4">Data Wygaśnięcia</th>
-                                <th className="py-3.5 px-4">Status</th>
-                                {canRemovePass && <th className="py-3.5 px-4 text-right">Akcje</th>}
-                            </tr>
-                            </thead>
-                            <tbody className="divide-y divide-stone-800/60">
-                            {filteredEntries.map(entry => (
-                                <tr key={entry._id} className="hover:bg-stone-800/40 transition-colors">
-                                    <td className="py-3.5 px-4">
-                                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-bold border ${
-                                                entry.passType === 'CAC'
-                                                    ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                                                    : 'bg-blue-500/10 text-blue-400 border-blue-500/20'
-                                            }`}>
-                                                <FontAwesomeIcon icon={faIdCard} className="text-[10px]" />
-                                                {entry.passType}
-                                            </span>
-                                    </td>
-                                    <td className="py-3.5 px-4 font-mono font-bold text-white">
-                                        {entry.passNumber}
-                                    </td>
-                                    <td className="py-3.5 px-4 font-medium text-stone-100">
-                                        {entry.holderName}
-                                    </td>
-                                    <td className="py-3.5 px-4 text-stone-400">
-                                        {entry.rankOrStatus}
-                                    </td>
-                                    <td className="py-3.5 px-4 text-xs font-mono text-stone-400">
-                                        {entry.expirationDate
-                                            ? new Date(entry.expirationDate).toLocaleDateString('pl-PL')
-                                            : 'BEZTERMINOWO'
-                                        }
-                                    </td>
-                                    <td className="py-3.5 px-4">
-                                            <span className="inline-flex items-center gap-1 text-xs text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-                                                <FontAwesomeIcon icon={faCheck} className="text-[10px]" />
-                                                AKTYWNA
-                                            </span>
-                                    </td>
-                                    {canRemovePass && (
-                                        <td className="py-3.5 px-4 text-right">
-                                            <button
-                                                onClick={() => handleDeleteEntry(entry._id)}
-                                                className="text-stone-500 hover:text-red-400 transition-colors p-1"
-                                                title="Unieważnij przepustkę"
-                                            >
-                                                <FontAwesomeIcon icon={faTrash} />
-                                            </button>
-                                        </td>
-                                    )}
+                    <>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left text-sm text-stone-300">
+                                <thead className="bg-stone-950 text-stone-400 uppercase text-[11px] font-semibold tracking-wider border-b border-stone-800">
+                                <tr>
+                                    <th className="py-3.5 px-4">Typ</th>
+                                    <th className="py-3.5 px-4">Nr Przepustki / DoD ID</th>
+                                    <th className="py-3.5 px-4">Imię i Nazwisko</th>
+                                    <th className="py-3.5 px-4">Stopień / Rola</th>
+                                    <th className="py-3.5 px-4">Data Wygaśnięcia</th>
+                                    <th className="py-3.5 px-4">Status</th>
+                                    {canRemovePass && <th className="py-3.5 px-4 text-right">Akcje</th>}
                                 </tr>
-                            ))}
-                            </tbody>
-                        </table>
-                    </div>
+                                </thead>
+                                <tbody className="divide-y divide-stone-800/60">
+                                {paginatedEntries.map(entry => (
+                                    <tr key={entry._id} className="hover:bg-stone-800/40 transition-colors">
+                                        <td className="py-3.5 px-4">
+                                            <div className="flex items-center gap-2">
+                                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-bold border ${
+                                                    entry.passType === 'CAC'
+                                                        ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                                                        : 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                                                }`}>
+                                                    <FontAwesomeIcon icon={faIdCard} className="text-[10px]" />
+                                                    {entry.passType}
+                                                </span>
+
+                                                {/* Ikonka 'i' z Popoverem i Obsługą Kliknięcia */}
+                                                {entry.passType === 'VCC' && entry.notes && (
+                                                    <div className="relative group inline-block">
+                                                        <button
+                                                            onClick={() => setViewNote({ title: entry.holderName, note: entry.notes! })}
+                                                            className="text-stone-400 hover:text-blue-400 transition-colors p-1"
+                                                            title="Zobacz opis"
+                                                        >
+                                                            <FontAwesomeIcon icon={faInfoCircle} className="text-sm" />
+                                                        </button>
+
+                                                        {/* Hover Popover */}
+                                                        <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 hidden group-hover:flex flex-col z-30 pointer-events-none w-64">
+                                                            <div className="bg-stone-950 text-stone-200 text-xs p-3 rounded-lg border border-stone-700 shadow-2xl whitespace-pre-wrap">
+                                                                <div className="text-[10px] font-bold text-blue-400 uppercase tracking-wider mb-1">
+                                                                    Uwagi / Cel wizyty:
+                                                                </div>
+                                                                {entry.notes}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="py-3.5 px-4 font-mono font-bold text-white">
+                                            {entry.passNumber}
+                                        </td>
+                                        <td className="py-3.5 px-4 font-medium text-stone-100">
+                                            {entry.holderName}
+                                        </td>
+                                        <td className="py-3.5 px-4 text-stone-400">
+                                            {entry.rankOrStatus}
+                                        </td>
+                                        <td className="py-3.5 px-4 text-xs font-mono text-stone-400">
+                                            {entry.expirationDate
+                                                ? new Date(entry.expirationDate).toLocaleDateString('pl-PL')
+                                                : 'BEZTERMINOWO'
+                                            }
+                                        </td>
+                                        <td className="py-3.5 px-4">
+                                                <span className="inline-flex items-center gap-1 text-xs text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                                                    <FontAwesomeIcon icon={faCheck} className="text-[10px]" />
+                                                    AKTYWNA
+                                                </span>
+                                        </td>
+                                        {canRemovePass && (
+                                            <td className="py-3.5 px-4 text-right">
+                                                <button
+                                                    onClick={() => handleDeleteEntry(entry._id)}
+                                                    className="text-stone-500 hover:text-red-400 transition-colors p-1"
+                                                    title="Unieważnij przepustkę"
+                                                >
+                                                    <FontAwesomeIcon icon={faTrash} />
+                                                </button>
+                                            </td>
+                                        )}
+                                    </tr>
+                                ))}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* Komponent Paginacji */}
+                        {totalPages > 1 && (
+                            <Pagination
+                                page={currentPage}
+                                totalPages={totalPages}
+                                onPrev={() => setCurrentPage(p => Math.max(p - 1, 1))}
+                                onNext={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
+                            />
+                        )}
+                    </>
                 ) : (
                     <div className="text-center py-12 text-stone-500 text-sm">
-                        Brak zarejestrowanych przepustek w bazie danych.
+                        Brak zarejestrowanych przepustek spełniających kryteria.
                     </div>
                 )}
             </div>
@@ -479,6 +583,39 @@ export const DbidsPage = () => {
                             </div>
 
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* MODAL PODGLĄDU UWAG VCC */}
+            {viewNote && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
+                    <div className="bg-stone-900 border border-stone-800 rounded-xl shadow-2xl w-full max-w-md p-6 space-y-4">
+                        <div className="flex items-center justify-between border-b border-stone-800 pb-3">
+                            <h3 className="text-md font-bold text-white flex items-center gap-2">
+                                <FontAwesomeIcon icon={faInfoCircle} className="text-blue-400" />
+                                <span>Uwagi: {viewNote.title}</span>
+                            </h3>
+                            <button
+                                onClick={() => setViewNote(null)}
+                                className="text-stone-400 hover:text-white transition-colors"
+                            >
+                                <FontAwesomeIcon icon={faTimes} />
+                            </button>
+                        </div>
+
+                        <div className="bg-stone-950 border border-stone-800 p-4 rounded-lg text-sm text-stone-300 whitespace-pre-wrap leading-relaxed">
+                            {viewNote.note}
+                        </div>
+
+                        <div className="flex justify-end pt-2">
+                            <button
+                                onClick={() => setViewNote(null)}
+                                className="px-4 py-2 bg-stone-800 hover:bg-stone-700 text-stone-300 rounded-lg text-sm transition-colors"
+                            >
+                                Zamknij
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
