@@ -29,7 +29,7 @@ import {
     faArrowDown,
     faXmark
 } from '@fortawesome/free-solid-svg-icons';
-import { ribbonsMap, availableRibbonNames } from '../../utils/ribbonsMap.ts';
+import { ribbonsMap, ribbonGroups, type RibbonGroup } from '../../utils/ribbonsMap.ts';
 
 const rankIcons = import.meta.glob<{ default: string }>('../../assets/icons/*.{png,jpg,jpeg,svg,webp}', {
     eager: true,
@@ -147,6 +147,7 @@ export const EmployeeDetailsPage = () => {
     const itemsPerPage = 5;
 
     const [showRibbonModal, setShowRibbonModal] = useState(false);
+    const [selectedRibbonGroup, setSelectedRibbonGroup] = useState<RibbonGroup | null>(null);
 
     const [modalType, setModalType] = useState<'reprimand' | 'praise' | 'promotion' | 'demotion' | null>(null);
     const [noteContent, setNoteContent] = useState('');
@@ -352,6 +353,7 @@ export const EmployeeDetailsPage = () => {
     const handleAddRibbon = (ribbonKey: string) => {
         setRibbons(prev => [...prev, ribbonKey]);
         setShowRibbonModal(false);
+        setSelectedRibbonGroup(null);
         toast.success('Dodano odznaczenie do teczki');
     };
 
@@ -862,48 +864,96 @@ export const EmployeeDetailsPage = () => {
                         <div className="flex items-center justify-between border-b border-stone-800 pb-3 mb-4">
                             <h2 className="text-lg font-bold text-white flex items-center gap-2">
                                 <FontAwesomeIcon icon={faAward} className="text-amber-500" />
-                                Wybierz odznaczenie do nadania
+                                {selectedRibbonGroup ? (
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => setSelectedRibbonGroup(null)}
+                                            className="text-xs text-stone-400 hover:text-white underline mr-2"
+                                        >
+                                            ← Powrót
+                                        </button>
+                                        <span>Warianty: {selectedRibbonGroup.baseName}</span>
+                                    </div>
+                                ) : (
+                                    'Wybierz odznaczenie do nadania'
+                                )}
                             </h2>
                             <button
-                                onClick={() => setShowRibbonModal(false)}
+                                onClick={() => {
+                                    setShowRibbonModal(false);
+                                    setSelectedRibbonGroup(null);
+                                }}
                                 className="text-stone-400 hover:text-white transition-colors"
                             >
                                 <FontAwesomeIcon icon={faTimes} />
                             </button>
                         </div>
 
-                        {availableRibbonNames.length > 0 ? (
+                        {selectedRibbonGroup ? (
                             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 overflow-y-auto p-2">
-                                {availableRibbonNames.map(ribbonKey => {
-                                    const ribbonName = formatRibbonName(ribbonKey);
+                                {selectedRibbonGroup.variants.map((variant: { key: string; name: string; url: string }) => (
+                                    <button
+                                        key={variant.key}
+                                        onClick={() => {
+                                            handleAddRibbon(variant.key);
+                                            setSelectedRibbonGroup(null);
+                                        }}
+                                        className="flex flex-col items-center justify-center p-3 bg-stone-800/80 hover:bg-stone-750 border border-amber-600/40 rounded-xl transition-all hover:scale-105 group"
+                                    >
+                                        <img
+                                            src={variant.url}
+                                            alt={variant.name}
+                                            className="h-10 object-contain mb-2"
+                                        />
+                                        <span className="text-[11px] text-stone-300 group-hover:text-white font-medium text-center truncate w-full">
+                                            {variant.name}
+                                        </span>
+                                    </button>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 overflow-y-auto p-2">
+                                {ribbonGroups.map((group: RibbonGroup) => {
+                                    const mainVariant = group.variants.find((v: { key: string; name: string; url: string }) => v.key === group.baseKey) || group.variants[0];
 
                                     return (
                                         <button
-                                            key={ribbonKey}
-                                            onClick={() => handleAddRibbon(ribbonKey)}
-                                            className="flex flex-col items-center justify-center p-3 bg-stone-800/80 hover:bg-stone-750 border border-stone-700/60 rounded-xl transition-all hover:scale-105 group"
+                                            key={group.baseKey}
+                                            onClick={() => {
+                                                if (group.variants.length > 1) {
+                                                    setSelectedRibbonGroup(group);
+                                                } else {
+                                                    handleAddRibbon(mainVariant.key);
+                                                }
+                                            }}
+                                            className="relative flex flex-col items-center justify-center p-3 bg-stone-800/80 hover:bg-stone-750 border border-stone-700/60 rounded-xl transition-all hover:scale-105 group"
                                         >
+                                            {group.variants.length > 1 && (
+                                                <span className="absolute -top-2 -right-2 z-10 bg-stone-900 text-emerald-400 border border-emerald-500/60 text-[10px] font-extrabold px-2 py-0.5 rounded-full shadow-lg">
+                                                    +{group.variants.length}
+                                                </span>
+                                            )}
+
                                             <img
-                                                src={ribbonsMap[ribbonKey]}
-                                                alt={ribbonName}
+                                                src={mainVariant.url}
+                                                alt={group.baseName}
                                                 className="h-10 object-contain mb-2"
                                             />
                                             <span className="text-[11px] text-stone-300 group-hover:text-white font-medium text-center truncate w-full">
-                                                {ribbonName}
+                                                {group.baseName}
                                             </span>
                                         </button>
                                     );
                                 })}
                             </div>
-                        ) : (
-                            <p className="text-stone-400 text-sm text-center py-8">
-                                Brak plików baretek.
-                            </p>
                         )}
 
                         <div className="flex justify-end border-t border-stone-800 pt-4 mt-4">
                             <button
-                                onClick={() => setShowRibbonModal(false)}
+                                onClick={() => {
+                                    setShowRibbonModal(false);
+                                    setSelectedRibbonGroup(null);
+                                }}
                                 className="px-4 py-2 bg-stone-800 hover:bg-stone-700 text-stone-300 rounded-lg text-sm transition-colors"
                             >
                                 Zamknij
