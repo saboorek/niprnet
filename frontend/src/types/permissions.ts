@@ -31,6 +31,7 @@ export interface Permissions {
     hasReportAccess: boolean;
     hasFleetAccess: boolean;
     hasDBIDSAccess: boolean;
+    hasMDTAccess: boolean;
     canAddPass: boolean;
     canRemovePass: boolean;
     canAddReport: boolean;
@@ -59,6 +60,7 @@ export const PERMISSION_LABELS: Record<keyof Permissions, string> = {
     canRemovePromotions: 'Usuwanie awansów',
     hasSecurityForcesAccess: 'Dostęp do działu SFS',
     hasReportAccess: 'Dostęp do raportów',
+    hasMDTAccess: 'Dostęp do MDT',
     hasFleetAccess: 'Dostęp do floty',
     hasDBIDSAccess: 'Dostęp do DBIDS',
     canAddPass: 'Dodawanie przepustek',

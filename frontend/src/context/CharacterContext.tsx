@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useState, useEffect, useRef } from "react";
 import type { ReactNode } from "react";
 import type { Permissions } from "../types/permissions";
 import config from "../utils/config";
@@ -26,22 +26,36 @@ const CharacterContext = createContext<CharacterContextType | null>(null);
 export const CharacterProvider = ({ children }: { children: ReactNode }) => {
     const [selectedCharacter, setSelectedCharacter] = useState<Character | null>(null);
     const [loading, setLoading] = useState(true);
+    const isSelectingRef = useRef(false);
 
     const refresh = async () => {
-        const data = await fetch(`${config.URL}/auth/session`, { credentials: 'include' })
-            .then(r => r.ok ? r.json() : null)
-            .catch(() => null);
+        if (isSelectingRef.current) return;
 
-        if (data?.activeCharacter) {
-            const ac = data.activeCharacter;
-            setSelectedCharacter(prev => {
-                if (JSON.stringify(prev?.permissions) !== JSON.stringify(ac.permissions)) {
-                    return { ...ac, _id: ac._id ?? ac.id };
-                }
-                return prev;
-            });
-        } else {
-            setSelectedCharacter(null);
+        try {
+            const data = await fetch(`${config.URL}/auth/session`, { credentials: 'include' })
+                .then(r => r.ok ? r.json() : null)
+                .catch(() => null);
+
+            if (isSelectingRef.current) return;
+
+            if (data?.activeCharacter) {
+                const ac = data.activeCharacter;
+                const normalizedChar: Character = {
+                    ...ac,
+                    _id: ac._id ?? ac.id,
+                };
+
+                setSelectedCharacter(prev => {
+                    if (!prev || JSON.stringify(prev) !== JSON.stringify(normalizedChar)) {
+                        return normalizedChar;
+                    }
+                    return prev;
+                });
+            } else {
+                setSelectedCharacter(null);
+            }
+        } catch (err) {
+            console.error('[CharacterContext] Błąd odświeżania sesji:', err);
         }
     };
 
@@ -53,17 +67,27 @@ export const CharacterProvider = ({ children }: { children: ReactNode }) => {
     }, []);
 
     const handleSelectCharacter = async (char: Character) => {
-        const res = await fetch(`${config.URL}/characters/select`, {
-            method: 'POST',
-            credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ characterId: char._id }),
-        });
-        if (res.ok) {
-            const data = await res.json();
-            setSelectedCharacter({ ...data, _id: data._id ?? data.id });
-        } else {
+        isSelectingRef.current = true;
+        try {
             setSelectedCharacter(char);
+
+            const res = await fetch(`${config.URL}/characters/select`, {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ characterId: char._id }),
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                setSelectedCharacter({ ...data, _id: data._id ?? data.id });
+            }
+        } catch (err) {
+            console.error('[CharacterContext] Błąd podczas wyboru postaci:', err);
+        } finally {
+            setTimeout(() => {
+                isSelectingRef.current = false;
+            }, 1000);
         }
     };
 

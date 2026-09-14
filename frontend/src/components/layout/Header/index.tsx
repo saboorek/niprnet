@@ -15,6 +15,7 @@ export const Header = ({ onToggleSidebar, isOpen }: Props) => {
     const [menuOpen, setMenuOpen] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [avatarUrl, setAvatarUrl] = useState('');
+    const [phone, setPhone] = useState('');
     const [saving, setSaving] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
 
@@ -41,29 +42,49 @@ export const Header = ({ onToggleSidebar, isOpen }: Props) => {
         toast.info('Wybierz postać aby kontynuować');
     };
 
-    const openSettings = () => {
+    const openSettings = async () => {
         setMenuOpen(false);
         setAvatarUrl(selectedCharacter?.avatarUrl ?? '');
+
+        if (selectedCharacter?._id) {
+            try {
+                const res = await fetch(`${config.URL}/employees`, { credentials: 'include' });
+                if (res.ok) {
+                    const employees = await res.json();
+                    const emp = employees.find((e: any) => String(e.characterId) === String(selectedCharacter._id));
+                    setPhone(emp?.phone ?? '');
+                }
+            } catch (e) {
+                console.error('Błąd pobierania telefonu:', e);
+            }
+        }
         setSettingsOpen(true);
     };
 
-    const handleSaveAvatar = async () => {
+    const handleSaveSettings = async () => {
         if (!selectedCharacter) return;
         setSaving(true);
         try {
-            const res = await fetch(`${config.URL}/characters/${selectedCharacter._id}/avatar`, {
+            const resAvatar = await fetch(`${config.URL}/characters/${selectedCharacter._id}/avatar`, {
                 method: 'PUT',
                 credentials: 'include',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ avatarUrl }),
             });
 
-            if (res.ok) {
+            const resPhone = await fetch(`${config.URL}/employees/${selectedCharacter._id}`, {
+                method: 'PUT',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phone }),
+            });
+
+            if (resAvatar.ok && resPhone.ok) {
                 updateCharacter({ avatarUrl });
-                toast.success('Avatar postaci został zaktualizowany');
+                toast.success('Ustawienia postaci zostały zapisane');
                 setSettingsOpen(false);
             } else {
-                toast.error('Nie udało się zaktualizować avatara');
+                toast.error('Błąd podczas zapisywania ustawień');
             }
         } catch {
             toast.error('Błąd serwera');
@@ -179,6 +200,17 @@ export const Header = ({ onToggleSidebar, isOpen }: Props) => {
                                 <p className="text-gray-500 text-xs mt-1">Zostaw puste aby usunąć avatar</p>
                             </div>
 
+                            <div>
+                                <label className="text-gray-300 text-sm mb-1 block">Numer telefonu</label>
+                                <input
+                                    type="text"
+                                    value={phone}
+                                    onChange={e => setPhone(e.target.value)}
+                                    placeholder="np. 555-0192"
+                                    className="w-full bg-gray-800 text-white rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-red-600 text-sm"
+                                />
+                            </div>
+
                             <div className="flex gap-3">
                                 <button
                                     onClick={() => setSettingsOpen(false)}
@@ -187,7 +219,7 @@ export const Header = ({ onToggleSidebar, isOpen }: Props) => {
                                     Anuluj
                                 </button>
                                 <button
-                                    onClick={handleSaveAvatar}
+                                    onClick={handleSaveSettings}
                                     disabled={saving}
                                     className="flex-1 py-2 rounded-lg bg-red-700 hover:bg-red-600 text-white font-bold transition-colors disabled:opacity-50 text-sm"
                                 >

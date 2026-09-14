@@ -8,6 +8,14 @@ export interface IEmployeeNote {
     createdAt?: Date;
 }
 
+export interface IEmployeeQualification {
+    _id?: string;
+    name: string;
+    description?: string;
+    obtainedAt?: Date;
+    issuedBy?: string;
+}
+
 export interface IEmployee extends Document {
     characterId: mongoose.Types.ObjectId;
     firstName: string;
@@ -19,8 +27,10 @@ export interface IEmployee extends Document {
     phone: string;
     notes: IEmployeeNote[];
     ribbons: string[];
+    qualifications: IEmployeeQualification[];
     squadronId?: mongoose.Types.ObjectId;
     sectionId?: mongoose.Types.ObjectId;
+    elementId?: mongoose.Types.ObjectId;
 }
 
 const EmployeeNoteSchema = new Schema<IEmployeeNote>({
@@ -28,6 +38,13 @@ const EmployeeNoteSchema = new Schema<IEmployeeNote>({
     content: { type: String, required: true },
     author: { type: String, required: true },
     createdAt: { type: Date, default: Date.now },
+});
+
+const EmployeeQualificationSchema = new Schema<IEmployeeQualification>({
+    name: { type: String, required: true },
+    description: { type: String, default: '' },
+    obtainedAt: { type: Date, default: Date.now },
+    issuedBy: { type: String, default: '' },
 });
 
 const EmployeeSchema = new Schema<IEmployee>({
@@ -39,10 +56,12 @@ const EmployeeSchema = new Schema<IEmployee>({
     rank: { type: String, default: 'Private' },
     status: { type: String, enum: ['active', 'on_leave', 'suspended', 'terminated'], default: 'active' },
     phone: { type: String, default: '' },
-    notes: { type: [EmployeeNoteSchema], default: [] }, // Zmiana na tablicę poddokumentów
+    notes: { type: [EmployeeNoteSchema], default: [] },
     ribbons: { type: [String], default: [] },
+    qualifications: { type: [EmployeeQualificationSchema], default: [] },
     squadronId: { type: Schema.Types.ObjectId, ref: 'Squadron', default: null },
     sectionId: { type: Schema.Types.ObjectId, ref: 'Section', default: null },
+    elementId: { type: Schema.Types.ObjectId, ref: 'Element', default: null },
 }, { timestamps: true });
 
 export const Employee = mongoose.model<IEmployee>('Employee', EmployeeSchema);

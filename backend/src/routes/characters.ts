@@ -125,7 +125,6 @@ router.post('/', isAuthenticated, async (req: Request, res: Response) => {
             return res.status(400).json({ message: 'Imię i nazwisko jest wymagane!' });
         }
 
-        // 1. Tworzymy i zapisujemy postać
         const character = new Character({
             discordId: user.id,
             discordUsername: user.username ?? null,
@@ -137,7 +136,6 @@ router.post('/', isAuthenticated, async (req: Request, res: Response) => {
 
         await character.save();
 
-        // 2. Tworzymy pełną teczkę pracownika z nadanym DoD ID
         try {
             await Employee.create({
                 characterId: character._id,
@@ -218,11 +216,36 @@ router.post('/select', isAuthenticated, async (req: Request, res: Response) => {
             avatarUrl: character.avatarUrl ?? null,
         };
 
-        console.log(`[POST /characters/select] Wybrano postać: ${character.firstName} ${character.lastName}`);
-        res.json((req.session as any).activeCharacter);
+        // Gwarancja zapisu sesji przed wysłaniem odpowiedzi
+        req.session.save((err) => {
+            if (err) {
+                console.error('[POST /characters/select] Błąd zapisu sesji:', err);
+                return res.status(500).json({ message: 'Błąd zapisu sesji' });
+            }
+            console.log(`[POST /characters/select] Wybrano postać: ${character.firstName} ${character.lastName}`);
+            return res.json((req.session as any).activeCharacter);
+        });
     } catch (err) {
         console.error('[POST /characters/select]', err);
         res.status(500).json({ message: 'Błąd serwera' });
+    }
+});
+
+router.delete('/select', isAuthenticated, (req: Request, res: Response) => {
+    try {
+        if ((req.session as any).activeCharacter) {
+            delete (req.session as any).activeCharacter;
+        }
+        req.session.save((err) => {
+            if (err) {
+                console.error('[DELETE /characters/select] Błąd zapisu sesji:', err);
+                return res.status(500).json({ message: 'Błąd zapisu sesji' });
+            }
+            return res.status(200).json({ message: 'Postać została odznaczona' });
+        });
+    } catch (err) {
+        console.error('[DELETE /characters/select]', err);
+        return res.status(500).json({ message: 'Błąd serwera' });
     }
 });
 
@@ -232,11 +255,8 @@ router.put('/:id/avatar', isAuthenticated, async (req: Request, res: Response) =
         const { avatarUrl } = req.body;
         const targetId = req.params.id;
 
-        // 1. Sprawdzamy, czy przekazane ID to bezpośrednio Character._id należący do użytkownika
         let character = await Character.findOne({ _id: targetId, discordId: user.id });
 
-        // 2. Jeśli nie znaleziono, a użytkownik ma uprawnienia do edycji postaci (np. Admin/HR),
-        // szukamy postaci bez sprawdzania discordId (obsługa edycji innych graczy)
         if (!character) {
             const hasEditPerm = user.permissions?.canEditCharacter || user.permissions?.hasAdminAccess;
             if (hasEditPerm) {
@@ -244,7 +264,6 @@ router.put('/:id/avatar', isAuthenticated, async (req: Request, res: Response) =
             }
         }
 
-        // 3. Jeśli nadal brak postaci, sprawdzamy czy przekazane ID nie jest czasem ID teczki Employee
         if (!character) {
             const emp = await Employee.findById(targetId);
             if (emp) {
@@ -256,7 +275,6 @@ router.put('/:id/avatar', isAuthenticated, async (req: Request, res: Response) =
             return res.status(404).json({ message: 'Nie znaleziono postaci dla podanego ID' });
         }
 
-        // Zapisujemy nowy avatar
         character.avatarUrl = avatarUrl?.trim() || null;
         await character.save();
 

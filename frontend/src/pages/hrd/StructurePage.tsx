@@ -12,7 +12,8 @@ import {
     faTrash,
     faUsers,
     faUser,
-    faPen
+    faPen,
+    faKey,
 } from '@fortawesome/free-solid-svg-icons';
 import { toast } from 'sonner';
 import config from '../../utils/config.ts';
@@ -27,6 +28,12 @@ interface EmployeeOption {
     rank: string;
     squadronId?: string | null;
     sectionId?: string | null;
+    elementId?: string | null;
+}
+
+interface StructureElement {
+    _id: string;
+    name: string;
 }
 
 interface StructureSection {
@@ -35,6 +42,7 @@ interface StructureSection {
     icon?: string | null;
     commanderId?: string | null;
     deputyCommanderId?: string | null;
+    elements?: StructureElement[];
 }
 
 interface StructureSquadron {
@@ -55,16 +63,20 @@ export const StructurePage = () => {
     const [employees, setEmployees] = useState<EmployeeOption[]>([]);
     const [loading, setLoading] = useState(true);
 
+    // Stany zwijania dla Eskadr, Sekcji oraz Elementów
     const [collapsedSquadrons, setCollapsedSquadrons] = useState<Record<string, boolean>>({});
+    const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+    const [collapsedElements, setCollapsedElements] = useState<Record<string, boolean>>({});
 
     const [showSquadronModal, setShowSquadronModal] = useState(false);
     const [showSectionModal, setShowSectionModal] = useState<string | null>(null);
+    const [showElementModal, setShowElementModal] = useState<string | null>(null);
     const [newUnitName, setNewUnitName] = useState('');
     const [selectedIcon, setSelectedIcon] = useState<string | null>(null);
 
     const [editModal, setEditModal] = useState<{
         open: boolean;
-        type: 'squadron' | 'section';
+        type: 'squadron' | 'section' | 'element';
         targetId: string;
         name: string;
         icon: string | null;
@@ -113,10 +125,15 @@ export const StructurePage = () => {
     };
 
     const toggleSquadronCollapse = (squadronId: string) => {
-        setCollapsedSquadrons(prev => ({
-            ...prev,
-            [squadronId]: !prev[squadronId]
-        }));
+        setCollapsedSquadrons(prev => ({ ...prev, [squadronId]: !prev[squadronId] }));
+    };
+
+    const toggleSectionCollapse = (sectionId: string) => {
+        setCollapsedSections(prev => ({ ...prev, [sectionId]: !prev[sectionId] }));
+    };
+
+    const toggleElementCollapse = (elementId: string) => {
+        setCollapsedElements(prev => ({ ...prev, [elementId]: !prev[elementId] }));
     };
 
     const getEmployeeName = (id?: string | null) => {
@@ -125,10 +142,16 @@ export const StructurePage = () => {
         return emp ? `${emp.rank} ${emp.firstName} ${emp.lastName}` : 'Nieznana postać';
     };
 
-    const getSectionMembers = (squadronId: string, sectionId: string) => {
+    const getSectionDirectMembers = (squadronId: string, sectionId: string) => {
         return employees.filter(
-            e => String(e.squadronId) === String(squadronId) && String(e.sectionId) === String(sectionId)
+            e => String(e.squadronId) === String(squadronId) &&
+                String(e.sectionId) === String(sectionId) &&
+                !e.elementId
         );
+    };
+
+    const getElementMembers = (elementId: string) => {
+        return employees.filter(e => String(e.elementId) === String(elementId));
     };
 
     const handleCreateSquadron = async (e: React.FormEvent) => {
@@ -175,11 +198,33 @@ export const StructurePage = () => {
         }
     };
 
+    const handleCreateElement = async (e: React.FormEvent, sectionId: string) => {
+        e.preventDefault();
+        try {
+            const res = await fetch(`${config.URL}/structure/section/${sectionId}/element`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ name: newUnitName })
+            });
+
+            if (res.ok) {
+                toast.success('Dodano Element');
+                setNewUnitName('');
+                setShowElementModal(null);
+                fetchData();
+            }
+        } catch {
+            toast.error('Błąd serwera');
+        }
+    };
+
     const handleSaveEdit = async (e: React.FormEvent) => {
         e.preventDefault();
-        const endpoint = editModal.type === 'squadron'
-            ? `${config.URL}/structure/squadron/${editModal.targetId}`
-            : `${config.URL}/structure/section/${editModal.targetId}`;
+        let endpoint = '';
+        if (editModal.type === 'squadron') endpoint = `${config.URL}/structure/squadron/${editModal.targetId}`;
+        else if (editModal.type === 'section') endpoint = `${config.URL}/structure/section/${editModal.targetId}`;
+        else if (editModal.type === 'element') endpoint = `${config.URL}/structure/element/${editModal.targetId}`;
 
         try {
             const res = await fetch(endpoint, {
@@ -190,7 +235,7 @@ export const StructurePage = () => {
             });
 
             if (res.ok) {
-                toast.success(`Zaktualizowano ${editModal.type === 'squadron' ? 'Eskadrę' : 'Sekcję'}`);
+                toast.success(`Zaktualizowano pomyślnie`);
                 setEditModal({ open: false, type: 'squadron', targetId: '', name: '', icon: null });
                 fetchData();
             } else {
@@ -201,7 +246,7 @@ export const StructurePage = () => {
         }
     };
 
-    const handleDelete = async (type: 'squadron' | 'section', id: string, name: string) => {
+    const handleDelete = async (type: 'squadron' | 'section' | 'element', id: string, name: string) => {
         if (!confirm(`Czy na pewno chcesz usunąć "${name}"?`)) return;
 
         try {
@@ -271,7 +316,7 @@ export const StructurePage = () => {
             ) : (
                 <div className="space-y-6">
                     {squadrons.map(sq => {
-                        const isCollapsed = collapsedSquadrons[sq._id];
+                        const isSquadronCollapsed = collapsedSquadrons[sq._id];
 
                         return (
                             <div key={sq._id} className="bg-stone-900 border border-stone-800 rounded-xl p-6 space-y-6 shadow-xl transition-all">
@@ -279,7 +324,7 @@ export const StructurePage = () => {
                                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-stone-800 pb-4">
                                     <div className="flex items-center gap-3 cursor-pointer select-none" onClick={() => toggleSquadronCollapse(sq._id)}>
                                         <button className="text-stone-400 hover:text-amber-400 transition-colors">
-                                            <FontAwesomeIcon icon={isCollapsed ? faChevronRight : faChevronDown} className="text-base" />
+                                            <FontAwesomeIcon icon={isSquadronCollapsed ? faChevronRight : faChevronDown} className="text-base" />
                                         </button>
                                         <div className="flex items-center gap-4">
                                             {sq.icon && squadronIconsMap[sq.icon] && (
@@ -310,10 +355,10 @@ export const StructurePage = () => {
                                                         name: sq.name,
                                                         icon: sq.icon || null
                                                     })}
-                                                    className="px-3 py-1.5 bg-stone-800 hover:bg-stone-700 text-stone-200 rounded-lg text-xs font-semibold border border-stone-700 transition-colors"
+                                                    className="px-3 py-1.5 bg-stone-800 hover:bg-stone-700 text-stone-200 rounded-lg text-xs font-semibold border border-stone-700 transition-colors flex items-center gap-1.5"
                                                     title="Edytuj Eskadrę"
                                                 >
-                                                    <FontAwesomeIcon icon={faPen} className="mr-1 text-amber-500" />
+                                                    <FontAwesomeIcon icon={faPen} className="text-amber-500" />
                                                     Edytuj
                                                 </button>
 
@@ -326,9 +371,9 @@ export const StructurePage = () => {
                                                         commanderId: sq.commanderId || '',
                                                         deputyCommanderId: sq.deputyCommanderId || ''
                                                     })}
-                                                    className="px-3 py-1.5 bg-stone-800 hover:bg-stone-700 text-stone-200 rounded-lg text-xs font-semibold border border-stone-700 transition-colors"
+                                                    className="px-3 py-1.5 bg-stone-800 hover:bg-stone-700 text-stone-200 rounded-lg text-xs font-semibold border border-stone-700 transition-colors flex items-center gap-1.5"
                                                 >
-                                                    <FontAwesomeIcon icon={faUserShield} className="mr-1 text-amber-500" />
+                                                    <FontAwesomeIcon icon={faUserShield} className="text-amber-500" />
                                                     Ustaw strukturę
                                                 </button>
                                             </>
@@ -337,9 +382,9 @@ export const StructurePage = () => {
                                         {canAddStructure && (
                                             <button
                                                 onClick={() => { setNewUnitName(''); setSelectedIcon(null); setShowSectionModal(sq._id); }}
-                                                className="px-3 py-1.5 bg-amber-600/20 hover:bg-amber-600/30 text-amber-400 rounded-lg text-xs font-semibold border border-amber-500/30 transition-colors"
+                                                className="px-3 py-1.5 bg-amber-600/20 hover:bg-amber-600/30 text-amber-400 rounded-lg text-xs font-semibold border border-amber-500/30 transition-colors flex items-center gap-1.5"
                                             >
-                                                <FontAwesomeIcon icon={faPlus} className="mr-1" />
+                                                <FontAwesomeIcon icon={faPlus} />
                                                 Dodaj Sekcję
                                             </button>
                                         )}
@@ -357,18 +402,22 @@ export const StructurePage = () => {
                                 </div>
 
                                 {/* SEKCJE / LOTY */}
-                                {!isCollapsed && (
+                                {!isSquadronCollapsed && (
                                     <div className="pl-4 sm:pl-6 border-l-2 border-stone-800 space-y-4 transition-all">
                                         {sq.sections.length === 0 ? (
                                             <p className="text-xs text-stone-500 italic">Brak podpiętych sekcji.</p>
                                         ) : (
                                             sq.sections.map(sec => {
-                                                const members = getSectionMembers(sq._id, sec._id);
+                                                const directMembers = getSectionDirectMembers(sq._id, sec._id);
+                                                const isSectionCollapsed = collapsedSections[sec._id];
 
                                                 return (
                                                     <div key={sec._id} className="bg-stone-950/60 border border-stone-800/80 rounded-lg p-4 space-y-4">
                                                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-stone-800/60 pb-3">
-                                                            <div className="flex items-center gap-3">
+                                                            <div className="flex items-center gap-3 cursor-pointer select-none" onClick={() => toggleSectionCollapse(sec._id)}>
+                                                                <button className="text-stone-400 hover:text-amber-400 transition-colors">
+                                                                    <FontAwesomeIcon icon={isSectionCollapsed ? faChevronRight : faChevronDown} className="text-sm" />
+                                                                </button>
                                                                 {sec.icon && squadronIconsMap[sec.icon] && (
                                                                     <img src={squadronIconsMap[sec.icon]} alt={sec.name} className="w-9 h-9 object-contain shrink-0" />
                                                                 )}
@@ -384,6 +433,16 @@ export const StructurePage = () => {
                                                             </div>
 
                                                             <div className="flex items-center gap-2">
+                                                                {canAddStructure && (
+                                                                    <button
+                                                                        onClick={() => { setNewUnitName(''); setShowElementModal(sec._id); }}
+                                                                        className="px-2.5 py-1 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 rounded text-xs font-semibold border border-blue-500/30 transition-colors flex items-center gap-1"
+                                                                    >
+                                                                        <FontAwesomeIcon icon={faPlus} />
+                                                                        Dodaj Element
+                                                                    </button>
+                                                                )}
+
                                                                 {canEditStructure && (
                                                                     <>
                                                                         <button
@@ -394,10 +453,10 @@ export const StructurePage = () => {
                                                                                 name: sec.name,
                                                                                 icon: sec.icon || null
                                                                             })}
-                                                                            className="px-2.5 py-1 bg-stone-800 hover:bg-stone-700 text-stone-300 rounded text-xs transition-colors"
+                                                                            className="px-2.5 py-1 bg-stone-800 hover:bg-stone-700 text-stone-300 rounded text-xs transition-colors flex items-center gap-1"
                                                                             title="Edytuj Sekcję"
                                                                         >
-                                                                            <FontAwesomeIcon icon={faPen} className="mr-1 text-amber-500" />
+                                                                            <FontAwesomeIcon icon={faPen} className="text-amber-500" />
                                                                             Edytuj
                                                                         </button>
 
@@ -429,30 +488,108 @@ export const StructurePage = () => {
                                                             </div>
                                                         </div>
 
-                                                        {/* PERSONEL */}
-                                                        <div className="space-y-2">
-                                                            <h4 className="text-[11px] font-semibold text-stone-400 flex items-center gap-1.5 uppercase tracking-wider">
-                                                                <FontAwesomeIcon icon={faUsers} className="text-amber-500/80 text-[10px]" />
-                                                                Personel Sekcji ({members.length})
-                                                            </h4>
+                                                        {/* ZAWARTOŚĆ SEKCJI (ZWIJANA) */}
+                                                        {!isSectionCollapsed && (
+                                                            <div className="space-y-4 pt-1">
+                                                                {/* ELEMENTY SEKCJI */}
+                                                                {sec.elements && sec.elements.length > 0 && (
+                                                                    <div className="space-y-3 border-b border-stone-800/40 pb-3">
+                                                                        <h4 className="text-[11px] font-semibold text-stone-400 flex items-center gap-1.5 uppercase tracking-wider">
+                                                                            <FontAwesomeIcon icon={faKey} className="text-blue-400 text-[10px]" />
+                                                                            Elementy / Klucze ({sec.elements.length})
+                                                                        </h4>
+                                                                        <div className="space-y-2">
+                                                                            {sec.elements.map(elem => {
+                                                                                const elemMembers = getElementMembers(elem._id);
+                                                                                const isElementCollapsed = collapsedElements[elem._id];
 
-                                                            {members.length === 0 ? (
-                                                                <p className="text-[11px] text-stone-600 italic">Brak przypisanych żołnierzy / pracowników.</p>
-                                                            ) : (
-                                                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pt-1">
-                                                                    {members.map(member => (
-                                                                        <div
-                                                                            key={member.characterId || (member as any)._id}
-                                                                            className="bg-stone-900/90 border border-stone-800 rounded px-3 py-2 flex items-center gap-2 text-xs text-stone-200 shadow-sm"
-                                                                        >
-                                                                            <FontAwesomeIcon icon={faUser} className="text-stone-500 text-[10px]" />
-                                                                            <span className="font-medium text-amber-400">{member.rank}</span>
-                                                                            <span className="truncate">{member.firstName} {member.lastName}</span>
+                                                                                return (
+                                                                                    <div key={elem._id} className="bg-stone-900 border border-stone-800/90 rounded-lg p-3 space-y-2">
+                                                                                        <div className="flex items-center justify-between text-xs text-stone-300 border-b border-stone-800/60 pb-1.5">
+                                                                                            <div className="flex items-center gap-2 cursor-pointer select-none" onClick={() => toggleElementCollapse(elem._id)}>
+                                                                                                <button className="text-stone-400 hover:text-amber-400 transition-colors">
+                                                                                                    <FontAwesomeIcon icon={isElementCollapsed ? faChevronRight : faChevronDown} className="text-[10px]" />
+                                                                                                </button>
+                                                                                                <span className="font-semibold text-amber-400/90">{elem.name}</span>
+                                                                                            </div>
+                                                                                            <div className="flex items-center gap-2">
+                                                                                                {canEditStructure && (
+                                                                                                    <button
+                                                                                                        onClick={() => setEditModal({
+                                                                                                            open: true,
+                                                                                                            type: 'element',
+                                                                                                            targetId: elem._id,
+                                                                                                            name: elem.name,
+                                                                                                            icon: null
+                                                                                                        })}
+                                                                                                        className="text-stone-500 hover:text-amber-400 transition-colors"
+                                                                                                    >
+                                                                                                        <FontAwesomeIcon icon={faPen} className="text-[10px]" />
+                                                                                                    </button>
+                                                                                                )}
+                                                                                                {canRemoveStructure && (
+                                                                                                    <button
+                                                                                                        onClick={() => handleDelete('element', elem._id, elem.name)}
+                                                                                                        className="text-stone-500 hover:text-red-400 transition-colors"
+                                                                                                    >
+                                                                                                        <FontAwesomeIcon icon={faTrash} className="text-[10px]" />
+                                                                                                    </button>
+                                                                                                )}
+                                                                                            </div>
+                                                                                        </div>
+
+                                                                                        {/* OSOBY PRZYPISANE DO ELEMENTU (ZWIJANE) */}
+                                                                                        {!isElementCollapsed && (
+                                                                                            elemMembers.length === 0 ? (
+                                                                                                <p className="text-[11px] text-stone-600 italic">Brak przypisanych żołnierzy.</p>
+                                                                                            ) : (
+                                                                                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-1.5 pt-1">
+                                                                                                    {elemMembers.map(member => (
+                                                                                                        <div
+                                                                                                            key={member.characterId || (member as any)._id}
+                                                                                                            className="bg-stone-950/80 border border-stone-800/70 rounded px-2.5 py-1.5 flex items-center gap-2 text-xs text-stone-200"
+                                                                                                        >
+                                                                                                            <FontAwesomeIcon icon={faUser} className="text-stone-500 text-[10px]" />
+                                                                                                            <span className="font-medium text-amber-400">{member.rank}</span>
+                                                                                                            <span className="truncate">{member.firstName} {member.lastName}</span>
+                                                                                                        </div>
+                                                                                                    ))}
+                                                                                                </div>
+                                                                                            )
+                                                                                        )}
+                                                                                    </div>
+                                                                                );
+                                                                            })}
                                                                         </div>
-                                                                    ))}
+                                                                    </div>
+                                                                )}
+
+                                                                {/* PERSONEL SEKCJI (Bez przypisanego elementu) */}
+                                                                <div className="space-y-2">
+                                                                    <h4 className="text-[11px] font-semibold text-stone-400 flex items-center gap-1.5 uppercase tracking-wider">
+                                                                        <FontAwesomeIcon icon={faUsers} className="text-amber-500/80 text-[10px]" />
+                                                                        Personel Sekcji ({directMembers.length})
+                                                                    </h4>
+
+                                                                    {directMembers.length === 0 ? (
+                                                                        <p className="text-[11px] text-stone-600 italic">Brak bezpośrednio przypisanych żołnierzy / pracowników.</p>
+                                                                    ) : (
+                                                                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pt-1">
+                                                                            {directMembers.map(member => (
+                                                                                <div
+                                                                                    key={member.characterId || (member as any)._id}
+                                                                                    className="bg-stone-900/90 border border-stone-800 rounded px-3 py-2 flex items-center gap-2 text-xs text-stone-200 shadow-sm"
+                                                                                >
+                                                                                    <FontAwesomeIcon icon={faUser} className="text-stone-500 text-[10px]" />
+                                                                                    <span className="font-medium text-amber-400">{member.rank}</span>
+                                                                                    <span className="truncate">{member.firstName} {member.lastName}</span>
+                                                                                </div>
+                                                                            ))}
+                                                                        </div>
+                                                                    )}
                                                                 </div>
-                                                            )}
-                                                        </div>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 );
                                             })
@@ -465,13 +602,13 @@ export const StructurePage = () => {
                 </div>
             )}
 
-            {/* MODAL EDYCJI (ESKADRA / SEKCJA) */}
+            {/* MODAL EDYCJI (ESKADRA / SEKCJA / ELEMENT) */}
             {editModal.open && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
                     <div className="bg-stone-900 border border-stone-800 rounded-xl shadow-2xl w-full max-w-md p-6 space-y-4">
                         <div className="flex items-center justify-between border-b border-stone-800 pb-3">
                             <h3 className="text-base font-bold text-white">
-                                Edytuj {editModal.type === 'squadron' ? 'Eskadrę' : 'Sekcję'}
+                                Edytuj {editModal.type === 'squadron' ? 'Eskadrę' : editModal.type === 'section' ? 'Sekcję' : 'Element'}
                             </h3>
                             <button onClick={() => setEditModal(prev => ({ ...prev, open: false }))} className="text-stone-400 hover:text-white">
                                 <FontAwesomeIcon icon={faTimes} />
@@ -489,40 +626,42 @@ export const StructurePage = () => {
                                 />
                             </div>
 
-                            <div>
-                                <label className="block text-xs font-semibold text-stone-400 mb-1">Oznaczenie / Logo (Opcjonalnie)</label>
-                                <div className="grid grid-cols-4 gap-2 bg-stone-800/80 p-3 rounded-lg border border-stone-700 max-h-48 overflow-y-auto">
-                                    <button
-                                        type="button"
-                                        onClick={() => setEditModal(prev => ({ ...prev, icon: null }))}
-                                        className={`flex items-center justify-center p-2 rounded-lg border transition-all text-xs ${
-                                            editModal.icon === null
-                                                ? 'border-amber-500 bg-amber-600/30 text-white font-bold'
-                                                : 'border-stone-700 hover:bg-stone-700 text-stone-400'
-                                        }`}
-                                    >
-                                        Brak
-                                    </button>
-                                    {availableSquadronIconNames.map(iconName => (
+                            {editModal.type !== 'element' && (
+                                <div>
+                                    <label className="block text-xs font-semibold text-stone-400 mb-1">Oznaczenie / Logo (Opcjonalnie)</label>
+                                    <div className="grid grid-cols-4 gap-2 bg-stone-800/80 p-3 rounded-lg border border-stone-700 max-h-48 overflow-y-auto">
                                         <button
-                                            key={iconName}
                                             type="button"
-                                            onClick={() => setEditModal(prev => ({ ...prev, icon: iconName }))}
-                                            className={`flex items-center justify-center p-2 rounded-lg border transition-all ${
-                                                editModal.icon === iconName
-                                                    ? 'border-amber-500 bg-amber-600/30 scale-105'
-                                                    : 'border-stone-700 hover:bg-stone-700'
+                                            onClick={() => setEditModal(prev => ({ ...prev, icon: null }))}
+                                            className={`flex items-center justify-center p-2 rounded-lg border transition-all text-xs ${
+                                                editModal.icon === null
+                                                    ? 'border-amber-500 bg-amber-600/30 text-white font-bold'
+                                                    : 'border-stone-700 hover:bg-stone-700 text-stone-400'
                                             }`}
                                         >
-                                            <img
-                                                src={squadronIconsMap[iconName]}
-                                                alt={iconName}
-                                                className="w-9 h-9 object-contain"
-                                            />
+                                            Brak
                                         </button>
-                                    ))}
+                                        {availableSquadronIconNames.map(iconName => (
+                                            <button
+                                                key={iconName}
+                                                type="button"
+                                                onClick={() => setEditModal(prev => ({ ...prev, icon: iconName }))}
+                                                className={`flex items-center justify-center p-2 rounded-lg border transition-all ${
+                                                    editModal.icon === iconName
+                                                        ? 'border-amber-500 bg-amber-600/30 scale-105'
+                                                        : 'border-stone-700 hover:bg-stone-700'
+                                                }`}
+                                            >
+                                                <img
+                                                    src={squadronIconsMap[iconName]}
+                                                    alt={iconName}
+                                                    className="w-9 h-9 object-contain"
+                                                />
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
-                            </div>
+                            )}
 
                             <div className="flex justify-end gap-2 pt-2 border-t border-stone-800">
                                 <button
@@ -612,7 +751,7 @@ export const StructurePage = () => {
                 </div>
             )}
 
-            {/* MODALE DODAWANIA */}
+            {/* MODALE DODAWANIA ESKADRY / SEKCJI */}
             {(showSquadronModal || showSectionModal) && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
                     <div className="bg-stone-900 border border-stone-800 rounded-xl shadow-2xl w-full max-w-md p-6 space-y-4">
@@ -681,6 +820,45 @@ export const StructurePage = () => {
                                 </button>
                                 <button type="submit" className="px-4 py-2 bg-amber-600 text-white font-semibold rounded-lg text-xs">
                                     Stwórz
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* MODAL DODAWANIA ELEMENTU */}
+            {showElementModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+                    <div className="bg-stone-900 border border-stone-800 rounded-xl shadow-2xl w-full max-w-md p-6 space-y-4">
+                        <div className="flex items-center justify-between border-b border-stone-800 pb-3">
+                            <h3 className="text-base font-bold text-white">Dodaj Nowy Element / Klucz</h3>
+                            <button onClick={() => setShowElementModal(null)} className="text-stone-400 hover:text-white">
+                                <FontAwesomeIcon icon={faTimes} />
+                            </button>
+                        </div>
+                        <form onSubmit={e => handleCreateElement(e, showElementModal)} className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-semibold text-stone-400 mb-1">Nazwa elementu</label>
+                                <input
+                                    type="text"
+                                    value={newUnitName}
+                                    onChange={e => setNewUnitName(e.target.value)}
+                                    placeholder="np. Klucz A, Załoga #1..."
+                                    className="w-full bg-stone-800 border border-stone-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500"
+                                    required
+                                />
+                            </div>
+                            <div className="flex justify-end gap-2 pt-2 border-t border-stone-800">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowElementModal(null)}
+                                    className="px-4 py-2 bg-stone-800 text-stone-300 rounded-lg text-xs"
+                                >
+                                    Anuluj
+                                </button>
+                                <button type="submit" className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-semibold rounded-lg text-xs">
+                                    Stwórz Element
                                 </button>
                             </div>
                         </form>

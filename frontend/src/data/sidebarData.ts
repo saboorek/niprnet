@@ -4,6 +4,8 @@ import {
     faUserTie,
     faUser,
     faIdCard,
+    faRectangleList,
+    faWindowRestore, faSitemap, faUserXmark,
 } from "@fortawesome/free-solid-svg-icons";
 import type { IconDefinition } from "@fortawesome/fontawesome-svg-core";
 import type { Permissions } from "../types/permissions";
@@ -47,8 +49,8 @@ export const sidebarItems: SidebarItemDef[] = [
         title: 'Human Resources Division',
         children: [
             { href: '/hrd/employees', title: 'Pracownicy', icon: faUser, permission: 'hasEmployeeAccess' },
-            { href: '/hrd/structure', title: 'Struktura', icon: faUserGear, permission: 'hasStructureAccess' },
-            { href: '/hrd/absences', title: 'Nieobecności', icon: faUserGear, permission: 'hasAbsenceAccess' },
+            { href: '/hrd/structure', title: 'Struktura', icon: faSitemap, permission: 'hasStructureAccess' },
+            { href: '/hrd/absences', title: 'Nieobecności', icon: faUserXmark, permission: 'hasAbsenceAccess' },
         ],
     },
     {
@@ -56,7 +58,8 @@ export const sidebarItems: SidebarItemDef[] = [
         title: 'Security Forces Squadron',
         children: [
             { href: '/sfs/dbids', title: 'DBIDS', icon: faIdCard, permission: 'hasDBIDSAccess' },
-            { href: '/sfs/reports', title: 'Raporty', icon: faIdCard, permission: 'hasReportAccess' },
+            { href: '/sfs/reports', title: 'Raporty', icon: faRectangleList, permission: 'hasReportAccess' },
+            { href: '/sfs/mdc', title: 'MDC', icon: faWindowRestore, permission: 'hasReportAccess' },
         ],
     },
 ];

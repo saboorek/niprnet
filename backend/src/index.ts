@@ -23,6 +23,7 @@ import meta from './routes/meta';
 import employeeRoutes from './routes/employees';
 import structureRoutes from './routes/structure';
 import absenceRoutes from './routes/absences';
+import mdcRoutes from './routes/mdc';
 
 
 const requiredEnvVars = [
@@ -127,6 +128,7 @@ app.use('/api/dbids', dbidsRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/structure', structureRoutes);
 app.use('/api/absences', absenceRoutes);
+app.use('/api/mdc', mdcRoutes);
 
 
 const PORT = process.env.PORT || 5000;

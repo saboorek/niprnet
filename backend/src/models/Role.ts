@@ -34,6 +34,7 @@ export interface IPermissions {
     hasReportAccess: boolean;
     hasFleetAccess: boolean;
     hasDBIDSAccess: boolean;
+    hasMDTAccess: boolean;
     canAddPass: boolean;
     canRemovePass: boolean;
     canAddReport: boolean;
@@ -72,6 +73,7 @@ const PermissionsSchema = new Schema<IPermissions>({
     hasReportAccess: { type: Boolean, default: false },
     hasFleetAccess: { type: Boolean, default: false },
     hasDBIDSAccess: { type: Boolean, default: false },
+    hasMDTAccess: { type: Boolean, default: false },
     canAddPass: { type: Boolean, default: false },
     canRemovePass: { type: Boolean, default: false },
     canAddReport: { type: Boolean, default: false },

@@ -3,7 +3,6 @@ import { Character } from '../models/Character';
 import { Employee } from '../models/Employee';
 import { Role } from '../models/Role';
 import { isAuthenticated } from '../middleware/auth';
-import { requirePermission } from '../middleware/permissions';
 
 const router = Router();
 
@@ -11,7 +10,6 @@ const generateDoDId = (): string => {
     return Math.floor(1000000000 + Math.random() * 9000000000).toString();
 };
 
-// Dostępny dla każdego zalogowanego (potrzebny dla Dashboard i StructurePage)
 router.get('/', isAuthenticated, async (_req: Request, res: Response) => {
     try {
         const characters = await Character.find().populate('roles').lean();
@@ -64,8 +62,10 @@ router.get('/', isAuthenticated, async (_req: Request, res: Response) => {
                 phone: empData?.phone ?? null,
                 notes: Array.isArray(empData?.notes) ? empData.notes : [],
                 ribbons: empData?.ribbons ?? [],
+                qualifications: Array.isArray(empData?.qualifications) ? empData.qualifications : [],
                 squadronId: empData?.squadronId ?? null,
                 sectionId: empData?.sectionId ?? null,
+                elementId: empData?.elementId ?? null,
             };
         });
 
@@ -76,11 +76,10 @@ router.get('/', isAuthenticated, async (_req: Request, res: Response) => {
     }
 });
 
-// Zapis teczki - chroniony uprawnieniem HR
-router.put('/:characterId', isAuthenticated, requirePermission('hasHumanResourcesAccess'), async (req: Request, res: Response) => {
+router.put('/:characterId', isAuthenticated, async (req: Request, res: Response) => {
     try {
         const { characterId } = req.params;
-        const { status, phone, notes, ribbons, squadronId, sectionId, rank } = req.body;
+        const { status, phone, notes, ribbons, qualifications, squadronId, sectionId, elementId, rank } = req.body;
 
         const targetEmployee = await Employee.findOne({
             $or: [{ characterId }, { _id: characterId }]
@@ -90,39 +89,61 @@ router.put('/:characterId', isAuthenticated, requirePermission('hasHumanResource
             return res.status(404).json({ message: 'Nie znaleziono teczki pracownika' });
         }
 
-        const actualCharacterId = targetEmployee.characterId;
-        const character = await Character.findById(actualCharacterId);
+        const activeCharId = (req.session as any)?.activeCharacter?.id?.toString()
+            || (req.session as any)?.activeCharacter?._id?.toString()
+            || (req as any).user?.characterId?.toString();
 
-        if (rank && character) {
-            const newRankRole = await Role.findOne({ name: rank, type: 'rank' });
-            if (newRankRole) {
-                const allRanks = await Role.find({ type: 'rank' }).select('_id');
-                const rankIdsHex = allRanks.map(r => r._id.toString());
+        const isSelf = activeCharId === targetEmployee.characterId.toString();
 
-                const currentRoles = (character.roles || []).map(r => r.toString());
-                const filteredRoles = currentRoles.filter(rId => !rankIdsHex.includes(rId));
-                filteredRoles.push(newRankRole._id.toString());
+        const userPermissions = (req.session as any)?.activeCharacter?.permissions
+            || (req as any).user?.permissions;
 
-                character.roles = filteredRoles as any;
-                await character.save();
+        const hasHRAccess = Boolean(userPermissions?.hasHumanResourcesAccess);
+
+        if (!isSelf && !hasHRAccess) {
+            return res.status(403).json({ message: 'Brak uprawnień do edycji teczki tego pracownika' });
+        }
+
+        const updateFields: any = {};
+
+        if (isSelf && !hasHRAccess) {
+            if (phone !== undefined) updateFields.phone = phone;
+        } else {
+            if (status !== undefined) updateFields.status = status;
+            if (phone !== undefined) updateFields.phone = phone;
+            if (notes !== undefined) updateFields.notes = Array.isArray(notes) ? notes : [];
+            if (ribbons !== undefined) updateFields.ribbons = ribbons;
+            if (qualifications !== undefined) updateFields.qualifications = Array.isArray(qualifications) ? qualifications : [];
+            if (squadronId !== undefined) updateFields.squadronId = squadronId || null;
+            if (sectionId !== undefined) updateFields.sectionId = sectionId || null;
+            if (elementId !== undefined) updateFields.elementId = elementId || null;
+
+            if (rank) {
+                const character = await Character.findById(targetEmployee.characterId);
+                if (character) {
+                    const newRankRole = await Role.findOne({ name: rank, type: 'rank' });
+                    if (newRankRole) {
+                        const allRanks = await Role.find({ type: 'rank' }).select('_id');
+                        const rankIdsHex = allRanks.map(r => r._id.toString());
+
+                        const currentRoles = (character.roles || []).map(r => r.toString());
+                        const filteredRoles = currentRoles.filter(rId => !rankIdsHex.includes(rId));
+                        filteredRoles.push(newRankRole._id.toString());
+
+                        character.roles = filteredRoles as any;
+                        await character.save();
+                    }
+                }
             }
         }
 
-        const updateFields: any = {
-            status,
-            phone,
-            notes: Array.isArray(notes) ? notes : [],
-            ribbons: ribbons || [],
-            squadronId: squadronId || null,
-            sectionId: sectionId || null,
-        };
-
-        // Automatyczne uzupełnienie brakujących pól dla starszych wpisów z bazy
-        if (!targetEmployee.firstName && character?.firstName) {
-            updateFields.firstName = character.firstName;
+        if (!targetEmployee.firstName) {
+            const char = await Character.findById(targetEmployee.characterId);
+            if (char?.firstName) updateFields.firstName = char.firstName;
         }
-        if (!targetEmployee.lastName && character?.lastName) {
-            updateFields.lastName = character.lastName;
+        if (!targetEmployee.lastName) {
+            const char = await Character.findById(targetEmployee.characterId);
+            if (char?.lastName) updateFields.lastName = char.lastName;
         }
         if (!targetEmployee.doDId) {
             updateFields.doDId = generateDoDId();

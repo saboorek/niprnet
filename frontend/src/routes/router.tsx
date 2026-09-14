@@ -12,6 +12,7 @@ import { DbidsPage } from '../pages/sfs/DbidsPage';
 import { AbsencesPage } from '../pages/hrd/AbsencesPage.tsx';
 import { StructurePage } from '../pages/hrd/StructurePage';
 import {ReportsPage} from "../pages/sfs/ReportPage.tsx";
+import {MdcPage} from "../pages/sfs/MdcPage.tsx";
 
 export const router = createBrowserRouter([
     {
@@ -41,6 +42,7 @@ export const router = createBrowserRouter([
                     { path: '/hrd/absences', element: <AbsencesPage/> },
                     { path: '/sfs/dbids', element: <DbidsPage /> },
                     { path: `/sfs/reports`, element: <ReportsPage /> },
+                    { path: `/sfs/mdc`, element: <MdcPage /> },
                 ],
             },
         ],

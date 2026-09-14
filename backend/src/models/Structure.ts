@@ -3,8 +3,7 @@ import { Schema, model, Document } from 'mongoose';
 export interface IStructureElement {
     _id?: string;
     name: string;
-    commanderId?: string | null;
-    deputyCommanderId?: string | null;
+
 }
 
 export interface IStructureSection {
@@ -26,8 +25,7 @@ export interface IStructureSquadron extends Document {
 
 const ElementSchema = new Schema<IStructureElement>({
     name: { type: String, required: true },
-    commanderId: { type: String, default: null },
-    deputyCommanderId: { type: String, default: null },
+
 });
 
 const SectionSchema = new Schema<IStructureSection>({

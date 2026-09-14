@@ -11,10 +11,16 @@ const rankIcons = import.meta.glob<{ default: string }>('../assets/icons/*.{png,
     eager: true,
 });
 
+interface StructureElement {
+    _id: string;
+    name: string;
+}
+
 interface StructureSection {
     _id: string;
     name: string;
     icon?: string | null;
+    elements?: StructureElement[];
 }
 
 interface StructureSquadron {
@@ -37,6 +43,7 @@ interface EmployeeDetails {
     ribbons?: string[];
     squadronId?: string | null;
     sectionId?: string | null;
+    elementId?: string | null;
 }
 
 const stripPaygradePrefix = (text: string): string => {
@@ -154,10 +161,14 @@ export const Dashboard = () => {
         if (!employee.sectionId) return sq.name;
 
         const sec = sq.sections?.find(s => String(s._id) === String(employee.sectionId));
-        return sec ? `${sq.name} ➔ ${sec.name}` : sq.name;
+        if (!sec) return sq.name;
+
+        if (!employee.elementId) return `${sq.name} ➔ ${sec.name}`;
+
+        const elem = sec.elements?.find(e => String(e._id) === String(employee.elementId));
+        return elem ? `${sq.name} ➔ ${sec.name} ➔ ${elem.name}` : `${sq.name} ➔ ${sec.name}`;
     };
 
-    // Pobieranie ikony przypisanej SEKCJI (lotu)
     const getSectionIconUrl = (): string | null => {
         if (!employee?.squadronId || !employee?.sectionId) return null;
         const sq = squadrons.find(s => String(s._id) === String(employee.squadronId));
@@ -237,7 +248,6 @@ export const Dashboard = () => {
                                         {employee.firstName} {employee.lastName}
                                     </h3>
 
-                                    {/* PIERWSZY WIERSZ: Stopień, DoD ID, Telefon */}
                                     <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 text-sm text-gray-300">
                                         <div className="flex items-center gap-1.5 font-semibold text-emerald-400">
                                             <RenderRankIcon rankName={employee.rank} />
@@ -257,7 +267,6 @@ export const Dashboard = () => {
                                         )}
                                     </div>
 
-                                    {/* DRUGI WIERSZ: Struktura organizacyjna */}
                                     {getStructurePath() && (
                                         <div className="flex justify-center md:justify-start">
                                             <div className="inline-flex items-center gap-1.5 text-amber-400 font-semibold text-xs bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded shadow-sm">
@@ -268,7 +277,6 @@ export const Dashboard = () => {
                                     )}
                                 </div>
 
-                                {/* LOGO / OZNACZENIE SEKCJI */}
                                 {sectionIconUrl && (
                                     <div className="shrink-0 flex items-center justify-center p-2 bg-gray-900/80 border border-gray-700/60 rounded-xl shadow-md">
                                         <img
