@@ -34,11 +34,20 @@ export interface IPermissions {
     hasReportAccess: boolean;
     hasFleetAccess: boolean;
     hasDBIDSAccess: boolean;
-    hasMDTAccess: boolean;
     canAddPass: boolean;
     canRemovePass: boolean;
     canAddReport: boolean;
     canRemoveReport: boolean;
+
+    // === MDT ===
+    hasMDCAccess: boolean;
+    hasMDTAccess: boolean;
+    canAddMDCRecord: boolean;
+    canRemoveMDCRecord: boolean;
+    canEditUnitType: boolean;
+    canEditStatus: boolean;
+    canAddMDCReqCode: boolean;
+    canRemoveMDCReqCode: boolean;
 }
 
 export interface IRole extends Document {
@@ -69,15 +78,23 @@ const PermissionsSchema = new Schema<IPermissions>({
     canRemovePromotions: { type: Boolean, default: false },
     canAddDemotes: { type: Boolean, default: false },
     canRemoveDemotes: { type: Boolean, default: false },
+    canAddStructure: { type: Boolean, default: false },
+    canRemoveStructure: { type: Boolean, default: false },
+    canEditStructure: { type: Boolean, default: false },
     hasSecurityForcesAccess: { type: Boolean, default: false },
     hasReportAccess: { type: Boolean, default: false },
     hasFleetAccess: { type: Boolean, default: false },
     hasDBIDSAccess: { type: Boolean, default: false },
-    hasMDTAccess: { type: Boolean, default: false },
     canAddPass: { type: Boolean, default: false },
     canRemovePass: { type: Boolean, default: false },
     canAddReport: { type: Boolean, default: false },
     canRemoveReport: { type: Boolean, default: false },
+    hasMDTAccess: { type: Boolean, default: false },
+    hasMDCAccess: { type: Boolean, default: false },
+    canEditUnitType: { type: Boolean, default: false },
+    canEditStatus: { type: Boolean, default: false },
+    canAddMDCReqCode: { type: Boolean, default: false },
+    canRemoveMDCReqCode: { type: Boolean, default: false },
 }, { _id: false });
 
 const RoleSchema = new Schema<IRole>({

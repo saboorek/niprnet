@@ -5,7 +5,7 @@ import { PERMISSION_LABELS, emptyPermissions } from '../../types/permissions';
 import type { Permissions } from '../../types/permissions';
 import { useCharacter } from '../../context/CharacterContext';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faPlus, faPen, faTrash, faShieldHalved, faAward, faChevronDown, faChevronRight } from '@fortawesome/free-solid-svg-icons';
+import { faPlus, faPen, faTrash, faShieldHalved, faAward, faChevronDown, faChevronRight, faXmark } from '@fortawesome/free-solid-svg-icons';
 import { availableIconNames, roleIconsMap } from '../../utils/roleIcons';
 
 type RoleType = 'role' | 'rank';
@@ -18,8 +18,7 @@ interface Role {
     permissions: Permissions;
 }
 
-const PERM_COLUMN_SIZE = 5;
-const ITEM_COLUMN_SIZE = 5; // Zmieniono z 10 na 5
+const ITEM_COLUMN_SIZE = 5;
 
 export const RolesPage = () => {
     const { refreshPermissions } = useCharacter();
@@ -142,7 +141,6 @@ export const RolesPage = () => {
     };
 
     const permKeys = Object.keys(PERMISSION_LABELS) as (keyof Permissions)[];
-    const permColumns = chunkArray(permKeys, PERM_COLUMN_SIZE);
 
     const safeRoles = Array.isArray(roles) ? roles : [];
     const systemRoles = safeRoles.filter(r => (r.type ?? 'role') === 'role');
@@ -308,145 +306,157 @@ export const RolesPage = () => {
                 )}
             </div>
 
-            {/* MODAL FORMULARZA */}
+            {/* FULLSCREEN MODAL FORMULARZA */}
             {showForm && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
-                    <div className="bg-stone-900 rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto p-6 border border-stone-800">
-                        <h2 className="text-xl font-bold text-white mb-5">
-                            {editRole ? 'Edytuj pozycję' : 'Tworzenie nowej pozycji'}
-                        </h2>
-                        <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950 p-6 sm:p-10 overflow-hidden">
+                    <div className="w-full h-full max-w-7xl flex flex-col justify-between overflow-hidden">
+                        {/* Header */}
+                        <div className="flex items-center justify-between border-b border-stone-800 pb-4 shrink-0">
                             <div>
-                                <label className="text-stone-300 text-sm mb-2 block font-medium">Typ wpisu</label>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <button
-                                        type="button"
-                                        onClick={() => setType('role')}
-                                        className={`p-3 rounded-lg border text-left flex items-center gap-3 transition-all ${
-                                            type === 'role'
-                                                ? 'bg-emerald-950/60 border-emerald-700 text-white'
-                                                : 'bg-stone-800 border-stone-700 text-stone-400 hover:bg-stone-750'
-                                        }`}
-                                    >
-                                        <FontAwesomeIcon icon={faShieldHalved} className={type === 'role' ? 'text-emerald-500' : 'text-stone-500'} />
-                                        <div>
-                                            <p className="font-bold text-sm">Rola z uprawnieniami</p>
-                                            <p className="text-xs text-stone-400 mt-0.5">Nadaje dostęp do paneli i akcji</p>
-                                        </div>
-                                    </button>
+                                <h2 className="text-2xl font-bold text-white">
+                                    {editRole ? 'Edycja pozycji' : 'Tworzenie nowej pozycji'}
+                                </h2>
+                                <p className="text-sm text-stone-400 mt-0.5">Skonfiguruj nazwę, rodzaj wpisu oraz przypisane uprawnienia systemowe</p>
+                            </div>
+                            <button
+                                onClick={() => setShowForm(false)}
+                                className="p-2 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-400 hover:text-white transition-colors"
+                            >
+                                <FontAwesomeIcon icon={faXmark} className="text-xl w-5 h-5 flex items-center justify-center" />
+                            </button>
+                        </div>
 
-                                    <button
-                                        type="button"
-                                        onClick={() => setType('rank')}
-                                        className={`p-3 rounded-lg border text-left flex items-center gap-3 transition-all ${
-                                            type === 'rank'
-                                                ? 'bg-amber-950/60 border-amber-700 text-white'
-                                                : 'bg-stone-800 border-stone-700 text-stone-400 hover:bg-stone-750'
-                                        }`}
-                                    >
-                                        <FontAwesomeIcon icon={faAward} className={type === 'rank' ? 'text-amber-500' : 'text-stone-500'} />
-                                        <div>
-                                            <p className="font-bold text-sm">Ranga organizacyjna</p>
-                                            <p className="text-xs text-stone-400 mt-0.5">Etykieta bez uprawnień systemowych</p>
+                        {/* Content Form */}
+                        <form onSubmit={handleSubmit} className="flex-1 flex flex-col justify-between py-6 overflow-hidden min-h-0">
+                            <div className="space-y-6 overflow-hidden flex-1 flex flex-col min-h-0">
+                                {/* Typ wpisu i Nazwa */}
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 shrink-0">
+                                    <div className="md:col-span-1">
+                                        <label className="text-stone-300 text-sm mb-2 block font-medium">Typ wpisu</label>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => setType('role')}
+                                                className={`p-3 rounded-lg border text-left flex items-center gap-3 transition-all ${
+                                                    type === 'role'
+                                                        ? 'bg-emerald-950/60 border-emerald-700 text-white'
+                                                        : 'bg-stone-900 border-stone-800 text-stone-400 hover:bg-stone-800'
+                                                }`}
+                                            >
+                                                <FontAwesomeIcon icon={faShieldHalved} className={type === 'role' ? 'text-emerald-500' : 'text-stone-500'} />
+                                                <div>
+                                                    <p className="font-bold text-sm">Rola</p>
+                                                    <p className="text-[11px] text-stone-400">Uprawnienia</p>
+                                                </div>
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={() => setType('rank')}
+                                                className={`p-3 rounded-lg border text-left flex items-center gap-3 transition-all ${
+                                                    type === 'rank'
+                                                        ? 'bg-amber-950/60 border-amber-700 text-white'
+                                                        : 'bg-stone-900 border-stone-800 text-stone-400 hover:bg-stone-800'
+                                                }`}
+                                            >
+                                                <FontAwesomeIcon icon={faAward} className={type === 'rank' ? 'text-amber-500' : 'text-stone-500'} />
+                                                <div>
+                                                    <p className="font-bold text-sm">Ranga</p>
+                                                    <p className="text-[11px] text-stone-400">Etykieta</p>
+                                                </div>
+                                            </button>
                                         </div>
-                                    </button>
+                                    </div>
+
+                                    <div className="md:col-span-2">
+                                        <label className="text-stone-300 text-sm mb-2 block font-medium">Nazwa</label>
+                                        <input
+                                            type="text"
+                                            value={name}
+                                            onChange={e => setName(e.target.value)}
+                                            placeholder={type === 'role' ? 'np. Administrator' : 'np. Staff Sergeant'}
+                                            required
+                                            className="w-full bg-stone-900 text-white rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-600 border border-stone-800"
+                                        />
+                                    </div>
                                 </div>
-                            </div>
 
-                            <div>
-                                <label className="text-stone-300 text-sm mb-1 block font-medium">Nazwa</label>
-                                <input
-                                    type="text"
-                                    value={name}
-                                    onChange={e => setName(e.target.value)}
-                                    placeholder={type === 'role' ? 'np. Administrator' : 'np. Staff Sergeant'}
-                                    required
-                                    className="w-full bg-stone-800 text-white rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-emerald-600 border border-stone-700"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="text-stone-300 text-sm mb-2 block font-medium">Ikona</label>
-                                <div className="grid grid-cols-6 sm:grid-cols-8 gap-2 bg-stone-800/80 p-3 rounded-lg border border-stone-700 max-h-40 overflow-y-auto">
-                                    <button
-                                        type="button"
-                                        onClick={() => setIcon(null)}
-                                        className={`flex items-center justify-center p-2 rounded-lg border transition-all text-xs ${
-                                            icon === null
-                                                ? 'border-emerald-600 bg-emerald-900/40 text-white font-bold'
-                                                : 'border-stone-700 hover:bg-stone-700 text-stone-400'
-                                        }`}
-                                    >
-                                        Brak
-                                    </button>
-                                    {availableIconNames.map(iconName => (
+                                {/* Wybór Ikony */}
+                                <div className="shrink-0">
+                                    <label className="text-stone-300 text-sm mb-2 block font-medium">Ikona</label>
+                                    <div className="flex flex-wrap gap-2 bg-stone-900 p-3 rounded-xl border border-stone-800">
                                         <button
-                                            key={iconName}
                                             type="button"
-                                            onClick={() => setIcon(iconName)}
-                                            className={`flex items-center justify-center p-2 rounded-lg border transition-all ${
-                                                icon === iconName
-                                                    ? 'border-emerald-600 bg-emerald-900/40 scale-105'
-                                                    : 'border-stone-700 hover:bg-stone-700'
+                                            onClick={() => setIcon(null)}
+                                            className={`flex items-center justify-center px-4 py-2 rounded-lg border transition-all text-xs h-11 ${
+                                                icon === null
+                                                    ? 'border-emerald-600 bg-emerald-900/40 text-white font-bold'
+                                                    : 'border-stone-800 hover:bg-stone-800 text-stone-400'
                                             }`}
                                         >
-                                            <img
-                                                src={roleIconsMap[iconName]}
-                                                alt={iconName}
-                                                className="w-7 h-7 object-contain"
-                                            />
+                                            Brak ikony
                                         </button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {type === 'role' && (
-                                <div>
-                                    <p className="text-stone-300 text-sm mb-4 font-medium">Uprawnienia systemowe</p>
-                                    <div
-                                        className="gap-x-8"
-                                        style={{
-                                            display: 'grid',
-                                            gridTemplateColumns: `repeat(${permColumns.length}, 1fr)`,
-                                        }}
-                                    >
-                                        {permColumns.map((col, colIdx) => (
-                                            <div key={colIdx} className="flex flex-col gap-4">
-                                                {col.map(key => (
-                                                    <label key={key} className="flex items-start gap-3 cursor-pointer group">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={permissions[key] ?? false}
-                                                            onChange={() => togglePerm(key)}
-                                                            className="w-4 h-4 mt-0.5 accent-emerald-600 shrink-0"
-                                                        />
-                                                        <span className="text-stone-300 group-hover:text-white transition-colors text-sm leading-snug">
-                                                            {PERMISSION_LABELS[key]}
-                                                        </span>
-                                                    </label>
-                                                ))}
-                                            </div>
+                                        {availableIconNames.map(iconName => (
+                                            <button
+                                                key={iconName}
+                                                type="button"
+                                                onClick={() => setIcon(iconName)}
+                                                className={`flex items-center justify-center p-2 rounded-lg border transition-all h-11 w-11 ${
+                                                    icon === iconName
+                                                        ? 'border-emerald-600 bg-emerald-900/40 scale-105'
+                                                        : 'border-stone-800 hover:bg-stone-800'
+                                                }`}
+                                            >
+                                                <img
+                                                    src={roleIconsMap[iconName]}
+                                                    alt={iconName}
+                                                    className="w-7 h-7 object-contain"
+                                                />
+                                            </button>
                                         ))}
                                     </div>
                                 </div>
-                            )}
 
-                            {error && <p className="text-red-400 text-sm">{error}</p>}
+                                {/* Uprawnienia w siatce (przewijane w pionie) */}
+                                {type === 'role' && (
+                                    <div className="flex-1 flex flex-col min-h-0 pt-2">
+                                        <p className="text-stone-300 text-sm mb-3 font-medium shrink-0">Uprawnienia systemowe</p>
+                                        <div className="bg-stone-900/60 border border-stone-800 rounded-xl p-4 flex-1 overflow-y-auto min-h-0 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 auto-rows-max">
+                                            {permKeys.map(key => (
+                                                <label key={key} className="flex items-center gap-3 p-3 rounded-lg bg-stone-900 border border-stone-800/80 cursor-pointer hover:border-stone-700 transition-colors group">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={permissions[key] ?? false}
+                                                        onChange={() => togglePerm(key)}
+                                                        className="w-4 h-4 accent-emerald-600 shrink-0"
+                                                    />
+                                                    <span className="text-stone-300 group-hover:text-white transition-colors text-xs font-medium leading-snug">
+                                                        {PERMISSION_LABELS[key]}
+                                                    </span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
 
-                            <div className="flex gap-3 mt-2">
+                            {error && <p className="text-red-400 text-sm mt-2">{error}</p>}
+
+                            {/* Stopka z przyciskami */}
+                            <div className="flex gap-4 border-t border-stone-800 pt-4 mt-4 shrink-0 justify-end">
                                 <button
                                     type="button"
                                     onClick={() => setShowForm(false)}
-                                    className="flex-1 py-2.5 rounded-lg bg-stone-800 text-stone-300 hover:bg-stone-700 transition-colors font-medium border border-stone-700/60"
+                                    className="px-6 py-2.5 rounded-lg bg-stone-800 text-stone-300 hover:bg-stone-700 transition-colors font-medium border border-stone-700/60"
                                 >
                                     Anuluj
                                 </button>
                                 <button
                                     type="submit"
                                     disabled={saving}
-                                    className="flex-1 py-2.5 rounded-lg bg-emerald-800 hover:bg-emerald-700 text-white font-bold transition-colors disabled:opacity-50 border border-emerald-700/60"
+                                    className="px-8 py-2.5 rounded-lg bg-emerald-800 hover:bg-emerald-700 text-white font-bold transition-colors disabled:opacity-50 border border-emerald-700/60"
                                 >
-                                    {saving ? 'Zapisz...' : editRole ? 'Zapisz zmiany' : 'Utwórz'}
+                                    {saving ? 'Zapisywanie...' : editRole ? 'Zapisz zmiany' : 'Utwórz nową pozycję'}
                                 </button>
                             </div>
                         </form>

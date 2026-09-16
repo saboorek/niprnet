@@ -24,7 +24,8 @@ import employeeRoutes from './routes/employees';
 import structureRoutes from './routes/structure';
 import absenceRoutes from './routes/absences';
 import mdcRoutes from './routes/mdc';
-
+import cadSettingsRouter from './routes/cadSettings';
+import cadUnitsRouter from './routes/cadUnits';
 
 const requiredEnvVars = [
     'MONGO_URL',
@@ -36,34 +37,62 @@ const requiredEnvVars = [
 ];
 
 async function migrateRoles() {
-    await Role.updateMany(
-        { 'permissions.canAddPass': { $exists: false } }, // <-- SPRAWDZAJ NOWE POLE
-        {
-            $set: {
-                'permissions.hasHumanResourcesAccess': false,
-                'permissions.hasEmployeeAccess': false,
-                'permissions.hasStructureAccess': false,
-                'permissions.canEditRibbons': false,
-                'permissions.canAddAbsence': false,
-                'permissions.canRemoveAbsence': false,
-                'permissions.canAddReprimands': false,
-                'permissions.canRemoveReprimands': false,
-                'permissions.canAddPraises': false,
-                'permissions.canRemovePraises': false,
-                'permissions.canAddPromotions': false,
-                'permissions.canRemovePromotions': false,
-                'permissions.hasSecurityForcesAccess': false,
-                'permissions.hasReportAccess': false,
-                'permissions.hasFleetAccess': false,
-                'permissions.hasDBIDSAccess': false,
-                'permissions.canAddPass': false,
-                'permissions.canRemovePass': false,
-                'permissions.canAddReport': false,
-                'permissions.canRemoveReport': false,
-                'permissions.canManageCharacter': false
-            }
-        }
-    );
+    const defaultPermissions = {
+        // === Administracja ===
+        'permissions.hasAdminAccess': false,
+        'permissions.canManagePermission': false,
+        'permissions.hasStatisticAccess': false,
+
+        // === HR ===
+        'permissions.hasHumanResourcesAccess': false,
+        'permissions.hasEmployeeAccess': false,
+        'permissions.hasStructureAccess': false,
+        'permissions.hasAbsenceAccess': false,
+        'permissions.canEditCharacter': false,
+        'permissions.canEditRibbons': false,
+        'permissions.canAddAbsence': false,
+        'permissions.canRemoveAbsence': false,
+        'permissions.canAddReprimands': false,
+        'permissions.canRemoveReprimands': false,
+        'permissions.canAddPraises': false,
+        'permissions.canRemovePraises': false,
+        'permissions.canAddPromotions': false,
+        'permissions.canRemovePromotions': false,
+        'permissions.canAddDemotes': false,
+        'permissions.canRemoveDemotes': false,
+        'permissions.canAddStructure': false,
+        'permissions.canRemoveStructure': false,
+        'permissions.canEditStructure': false,
+
+        // === SFS ===
+        'permissions.hasSecurityForcesAccess': false,
+        'permissions.hasReportAccess': false,
+        'permissions.hasFleetAccess': false,
+        'permissions.hasDBIDSAccess': false,
+        'permissions.canAddPass': false,
+        'permissions.canRemovePass': false,
+        'permissions.canAddReport': false,
+        'permissions.canRemoveReport': false,
+
+        // === MDT / CAD ===
+        'permissions.hasMDTAccess': false,
+        'permissions.hasCADAccess': false,
+        'permissions.canAddMDCRecord': false,
+        'permissions.canRemoveMDCRecord': false,
+        'permissions.canEditUnitType': false,
+        'permissions.canEditStatus': false,
+        'permissions.canAddMDCReqCode': false,
+        'permissions.canRemoveMDCReqCode': false,
+    };
+
+    for (const [key, defaultValue] of Object.entries(defaultPermissions)) {
+        await Role.updateMany(
+            { [key]: { $exists: false } },
+            { $set: { [key]: defaultValue } }
+        );
+    }
+
+    console.log('✅ Pomyślnie zweryfikowano i zaktualizowano strukturę uprawnień ról.');
 }
 
 for (const envVar of requiredEnvVars) {
@@ -129,7 +158,9 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/structure', structureRoutes);
 app.use('/api/absences', absenceRoutes);
 app.use('/api/mdc', mdcRoutes);
-
+app.use('/api/cad/settings', cadSettingsRouter);
+app.use('/api/cad/units', cadUnitsRouter);
+app.use('/api/cad', cadSettingsRouter);
 
 const PORT = process.env.PORT || 5000;
 
@@ -140,7 +171,6 @@ const startServer = async () => {
         console.log('⏰ Uruchamianie natychmiastowej synchronizacji nieobecności...');
         await syncEmployeeStatuses();
 
-        // CRON wykonuje się co 5 minut
         cron.schedule('*/5 * * * *', async () => {
             try {
                 await syncEmployeeStatuses();

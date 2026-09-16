@@ -31,11 +31,20 @@ export interface Permissions {
     hasReportAccess: boolean;
     hasFleetAccess: boolean;
     hasDBIDSAccess: boolean;
-    hasMDTAccess: boolean;
     canAddPass: boolean;
     canRemovePass: boolean;
     canAddReport: boolean;
     canRemoveReport: boolean;
+
+    // MDT
+    hasMDTAccess: boolean;
+    hasCADAccess: boolean;
+    canAddMDCRecord: boolean;
+    canRemoveMDCRecord: boolean;
+    canEditUnitType: boolean;
+    canEditStatus: boolean;
+    canAddMDCReqCode: boolean;
+    canRemoveMDCReqCode: boolean;
 
 }
 
@@ -60,7 +69,6 @@ export const PERMISSION_LABELS: Record<keyof Permissions, string> = {
     canRemovePromotions: 'Usuwanie awansów',
     hasSecurityForcesAccess: 'Dostęp do działu SFS',
     hasReportAccess: 'Dostęp do raportów',
-    hasMDTAccess: 'Dostęp do MDT',
     hasFleetAccess: 'Dostęp do floty',
     hasDBIDSAccess: 'Dostęp do DBIDS',
     canAddPass: 'Dodawanie przepustek',
@@ -72,6 +80,14 @@ export const PERMISSION_LABELS: Record<keyof Permissions, string> = {
     canAddStructure: 'Dodawanie struktury',
     canRemoveStructure: 'Usuwanie struktury',
     canEditStructure: 'Edycja struktury',
+    hasMDTAccess: 'Dostęp do MDT',
+    hasCADAccess: 'Dostęp do CAD',
+    canAddMDCRecord: 'Dodawanie wpisów do MDC',
+    canRemoveMDCRecord: 'Usuwanie wpisów z MDC',
+    canEditUnitType: 'Edycja typu jednostki',
+    canEditStatus: 'Edycja statusu',
+    canAddMDCReqCode: 'Dodawanie kodów wymagań do MDC',
+    canRemoveMDCReqCode: 'Usuwanie kodów wymagań z MDC',
 };
 
 export const emptyPermissions = (): Permissions =>

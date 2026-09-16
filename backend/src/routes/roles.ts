@@ -1,187 +1,135 @@
 import { Router, Request, Response } from 'express';
 import { Role } from '../models/Role';
-import { Character } from '../models/Character';
-import { DiscordUser } from '../models/DiscordUser';
 import { isAuthenticated } from '../middleware/auth';
-import { requirePermission } from '../middleware/permissions';
-import { sendDiscordMessage } from '../utils/discord';
-import mongoose from 'mongoose';
 
 const router = Router();
 
-router.get('/', isAuthenticated, requirePermission('hasAdminAccess'), async (_req: Request, res: Response) => {
+// --- DEDYKOWANY ENDPOINT DLA STOPNI (Dostępny dla wszystkich zalogowanych) ---
+router.get('/ranks', isAuthenticated, async (_req: Request, res: Response) => {
     try {
-        const roles = await Role.find().sort({ createdAt: -1 });
-        res.json(roles);
-    } catch {
-        res.status(500).json({ message: 'Błąd serwera' });
+        const ranks = await Role.find({ type: 'rank' }).select('_id name type icon').lean();
+        res.json(ranks);
+    } catch (error) {
+        console.error('[GET /roles/ranks] Błąd podczas pobierania stopni:', error);
+        res.status(500).json({ message: 'Błąd podczas pobierania listy stopni' });
     }
 });
 
-router.post('/', isAuthenticated, requirePermission('canManagePermission'), async (req: Request, res: Response) => {
+// --- PEŁNA LISTA RÓL (Wymaga odpowiednich uprawnień / dla admina) ---
+router.get('/', isAuthenticated, async (req: Request, res: Response) => {
     try {
+        const userPermissions = (req.session as any)?.activeCharacter?.permissions
+            || (req as any).user?.permissions;
+
+        const hasAdminAccess = Boolean(userPermissions?.hasAdminAccess || userPermissions?.canManageRoles);
+
+        if (!hasAdminAccess) {
+            return res.status(403).json({ message: 'Brak uprawnień do przeglądania pełnej listy ról' });
+        }
+
+        const roles = await Role.find().lean();
+        res.json(roles);
+    } catch (error) {
+        console.error('[GET /roles] Błąd podczas pobierania ról:', error);
+        res.status(500).json({ message: 'Błąd podczas pobierania ról' });
+    }
+});
+
+// --- TWORZENIE NOWEJ ROLI / RANGI ---
+router.post('/', isAuthenticated, async (req: Request, res: Response) => {
+    try {
+        const userPermissions = (req.session as any)?.activeCharacter?.permissions
+            || (req as any).user?.permissions;
+
+        const hasAdminAccess = Boolean(userPermissions?.hasAdminAccess || userPermissions?.canManageRoles);
+
+        if (!hasAdminAccess) {
+            return res.status(403).json({ message: 'Brak uprawnień do zarządzania rolami' });
+        }
+
         const { name, type, icon, permissions } = req.body;
-        if (!name?.trim()) {
+
+        if (!name || !name.trim()) {
             return res.status(400).json({ message: 'Nazwa roli jest wymagana' });
         }
 
-        const existing = await Role.findOne({ name: name.trim() });
-        if (existing) {
-            return res.status(400).json({ message: 'Rola o tej nazwie już istnieje' });
+        const newRole = new Role({
+            name: name.trim(),
+            type: type || 'role',
+            icon: icon || null,
+            permissions: permissions || {},
+        });
+
+        await newRole.save();
+        res.status(201).json(newRole);
+    } catch (error) {
+        console.error('[POST /roles] Błąd podczas tworzenia roli:', error);
+        res.status(500).json({ message: 'Błąd podczas tworzenia roli' });
+    }
+});
+
+// --- EDYCJA ROLI / RANGI ---
+router.put('/:id', isAuthenticated, async (req: Request, res: Response) => {
+    try {
+        const userPermissions = (req.session as any)?.activeCharacter?.permissions
+            || (req as any).user?.permissions;
+
+        const hasAdminAccess = Boolean(userPermissions?.hasAdminAccess || userPermissions?.canManageRoles);
+
+        if (!hasAdminAccess) {
+            return res.status(403).json({ message: 'Brak uprawnień do edycji ról' });
         }
 
-        const role = new Role({
-            name: name.trim(),
-            type: type ?? 'role',
-            icon: icon ?? null,
-            permissions: permissions ?? {}
-        });
-        await role.save();
-
-        const user = req.user as any;
-        const itemTypeLabel = role.type === 'rank' ? 'Ranga' : 'Rola';
-
-        sendDiscordMessage(process.env.DISCORD_CHANNEL_ADMIN_LOGS!, {
-            title: `🛡️ Nowy wpis (${itemTypeLabel}) został utworzony`,
-            color: 0x57F287,
-            fields: [
-                { name: 'Nazwa', value: role.name, inline: true },
-                { name: 'Typ', value: itemTypeLabel, inline: true },
-                { name: 'Utworzona przez', value: `<@${user.id}>`, inline: false },
-            ],
-            timestamp: new Date().toISOString(),
-        });
-
-        res.status(201).json(role);
-    } catch {
-        res.status(500).json({ message: 'Błąd serwera' });
-    }
-});
-
-router.put('/:id', isAuthenticated, requirePermission('canManagePermission'), async (req: Request, res: Response) => {
-    try {
         const { name, type, icon, permissions } = req.body;
-        const role = await Role.findByIdAndUpdate(
+
+        if (!name || !name.trim()) {
+            return res.status(400).json({ message: 'Nazwa roli jest wymagana' });
+        }
+
+        const updatedRole = await Role.findByIdAndUpdate(
             req.params.id,
-            { name, type, icon, permissions },
-            { returnDocument: 'after', runValidators: true }
-        );
-
-        if (!role) return res.status(404).json({ message: 'Rola nie została znaleziona' });
-
-        const user = req.user as any;
-        const itemTypeLabel = role.type === 'rank' ? 'Ranga' : 'Rola';
-
-        sendDiscordMessage(process.env.DISCORD_CHANNEL_ADMIN_LOGS!, {
-            title: `✏️ Wpis (${itemTypeLabel}) został zaktualizowany`,
-            color: 0xF39C12,
-            fields: [
-                { name: 'Nazwa', value: role.name, inline: true },
-                { name: 'Typ', value: itemTypeLabel, inline: true },
-                { name: 'Edytowana przez', value: `<@${user.id}>`, inline: false },
-            ],
-            timestamp: new Date().toISOString(),
-        });
-
-        res.json(role);
-    } catch {
-        res.status(500).json({ message: 'Błąd serwera' });
-    }
-});
-
-router.delete('/:id', isAuthenticated, requirePermission('canManagePermission'), async (req: Request, res: Response) => {
-    try {
-        const id = req.params.id as string;
-        const role = await Role.findByIdAndDelete(id);
-        if (!role) return res.status(404).json({ message: 'Rola nie znaleziona' });
-
-        const roleObjectId = new mongoose.Types.ObjectId(id);
-        await Character.updateMany(
-            { roles: roleObjectId },
-            { $pull: { roles: roleObjectId } }
-        );
-
-        const user = req.user as any;
-        sendDiscordMessage(process.env.DISCORD_CHANNEL_ADMIN_LOGS!, {
-            title: '🗑️ Pozycja została usunięta',
-            color: 0x95A5A6,
-            fields: [
-                { name: 'Nazwa', value: role.name, inline: false },
-                { name: 'Usunięta przez', value: `<@${user.id}>`, inline: false },
-            ],
-            timestamp: new Date().toISOString(),
-        });
-
-        res.json({ message: 'Rola usunięta' });
-    } catch {
-        res.status(500).json({ message: 'Błąd serwera' });
-    }
-});
-
-router.post('/assign', isAuthenticated, requirePermission('canManagePermission'), async (req: Request, res: Response) => {
-    try {
-        const { characterId, roleId } = req.body;
-        const character = await Character.findByIdAndUpdate(
-            characterId,
-            { $addToSet: { roles: roleId } },
+            {
+                name: name.trim(),
+                type: type || 'role',
+                icon: icon || null,
+                permissions: permissions || {},
+            },
             { new: true }
-        ).populate('roles');
-
-        if (!character) return res.status(404).json({ message: 'Postać nie znaleziona' });
-        res.json(character);
-    } catch {
-        res.status(500).json({ message: 'Błąd serwera' });
-    }
-});
-
-router.post('/revoke', isAuthenticated, requirePermission('canManagePermission'), async (req: Request, res: Response) => {
-    try {
-        const { characterId, roleId } = req.body;
-        const character = await Character.findByIdAndUpdate(
-            characterId,
-            { $pull: { roles: roleId } },
-            { new: true }
-        ).populate('roles');
-
-        if (!character) return res.status(404).json({ message: 'Postać nie znaleziona' });
-        res.json(character);
-    } catch {
-        res.status(500).json({ message: 'Błąd serwera' });
-    }
-});
-
-router.get('/discord-users', isAuthenticated, requirePermission('canManagePermission'), async (_req, res) => {
-    try {
-        const users = await DiscordUser.find();
-        res.json(users);
-    } catch {
-        res.status(500).json({ message: 'Błąd serwera' });
-    }
-});
-
-router.put('/discord-users/:discordId', isAuthenticated, requirePermission('canManagePermission'), async (req: Request, res: Response) => {
-    try {
-        const { permissions } = req.body;
-        const discordUser = await DiscordUser.findOneAndUpdate(
-            { discordId: req.params.discordId },
-            { permissions },
-            { new: true, upsert: true }
         );
 
-        const user = req.user as any;
-        sendDiscordMessage(process.env.DISCORD_CHANNEL_ADMIN_LOGS!, {
-            title: '🔑 Uprawnienia konta Discord zaktualizowane',
-            color: 0xE74C3C,
-            fields: [
-                { name: 'Konto', value: `<@${req.params.discordId}>`, inline: false },
-                { name: 'Zmienione przez', value: `<@${user.id}>`, inline: false },
-            ],
-            timestamp: new Date().toISOString(),
-        });
+        if (!updatedRole) {
+            return res.status(404).json({ message: 'Nie znaleziono wskazanej roli' });
+        }
 
-        res.json(discordUser);
-    } catch {
-        res.status(500).json({ message: 'Błąd serwera' });
+        res.json(updatedRole);
+    } catch (error) {
+        console.error('[PUT /roles/:id] Błąd podczas edycji roli:', error);
+        res.status(500).json({ message: 'Błąd podczas aktualizacji roli' });
+    }
+});
+
+// --- USUWANKO ROLI / RANGI ---
+router.delete('/:id', isAuthenticated, async (req: Request, res: Response) => {
+    try {
+        const userPermissions = (req.session as any)?.activeCharacter?.permissions
+            || (req as any).user?.permissions;
+
+        const hasAdminAccess = Boolean(userPermissions?.hasAdminAccess || userPermissions?.canManageRoles);
+
+        if (!hasAdminAccess) {
+            return res.status(403).json({ message: 'Brak uprawnień do usuwania ról' });
+        }
+
+        const deletedRole = await Role.findByIdAndDelete(req.params.id);
+
+        if (!deletedRole) {
+            return res.status(404).json({ message: 'Nie znaleziono pozycji do usunięcia' });
+        }
+
+        res.json({ message: 'Pomyślnie usunięto pozycję' });
+    } catch (error) {
+        console.error('[DELETE /roles/:id] Błąd podczas usuwania roli:', error);
+        res.status(500).json({ message: 'Błąd podczas usuwania roli' });
     }
 });
 

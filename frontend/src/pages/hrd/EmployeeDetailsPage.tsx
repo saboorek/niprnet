@@ -23,12 +23,14 @@ import {
     faTimes,
     faSitemap,
     faExternalLinkAlt,
-    faExclamationTriangle,
     faCheckCircle,
     faArrowUp,
     faArrowDown,
     faXmark,
-    faKey
+    faKey,
+    faGavel,
+    faBan,
+    faDollarSign
 } from '@fortawesome/free-solid-svg-icons';
 import { ribbonsMap, ribbonGroups, type RibbonGroup } from '../../utils/ribbonsMap.ts';
 
@@ -160,7 +162,11 @@ export const EmployeeDetailsPage = () => {
     const [showRibbonModal, setShowRibbonModal] = useState(false);
     const [selectedRibbonGroup, setSelectedRibbonGroup] = useState<RibbonGroup | null>(null);
 
-    const [modalType, setModalType] = useState<'reprimand' | 'praise' | 'promotion' | 'demotion' | null>(null);
+    // Modal state
+    const [modalType, setModalType] = useState<'disciplinary' | 'praise' | 'promotion' | 'demotion' | null>(null);
+    const [disciplinaryType, setDisciplinaryType] = useState<'reprimand' | 'promotion_block' | 'financial_penalty'>('reprimand');
+    const [promotionBlockDays, setPromotionBlockDays] = useState<string>('7');
+    const [penaltyAmount, setPenaltyAmount] = useState<string>('');
     const [noteContent, setNoteContent] = useState('');
     const [selectedRank, setSelectedRank] = useState('');
     const [submittingNote, setSubmittingNote] = useState(false);
@@ -173,10 +179,10 @@ export const EmployeeDetailsPage = () => {
         }
 
         try {
-            const [empRes, strRes, rolesRes] = await Promise.all([
+            const [empRes, strRes, ranksRes] = await Promise.all([
                 fetch(`${config.URL}/employees`, { credentials: 'include' }),
                 fetch(`${config.URL}/structure`, { credentials: 'include' }),
-                fetch(`${config.URL}/roles`, { credentials: 'include' })
+                fetch(`${config.URL}/roles/ranks`, { credentials: 'include' }) // Dedykowany endpoint dla stopni
             ]);
 
             if (strRes.ok) {
@@ -184,10 +190,9 @@ export const EmployeeDetailsPage = () => {
                 setSquadrons(strData);
             }
 
-            if (rolesRes.ok) {
-                const rolesData: RoleOption[] = await rolesRes.json();
-                const filteredRanks = rolesData.filter(r => r.type === 'rank');
-                setRanks(filteredRanks);
+            if (ranksRes.ok) {
+                const ranksData: RoleOption[] = await ranksRes.json();
+                setRanks(ranksData);
             }
 
             if (empRes.ok) {
@@ -270,19 +275,44 @@ export const EmployeeDetailsPage = () => {
         if (!modalType || !employee) return;
 
         let finalContent = '';
-        if (modalType === 'promotion') {
+        let noteTypeToSave: EmployeeNote['type'] = 'note';
+
+        if (modalType === 'disciplinary') {
+            noteTypeToSave = 'reprimand';
+
+            if (!noteContent.trim()) {
+                toast.error('Wpisz treść uzasadnienia / opis kary');
+                return;
+            }
+
+            if (disciplinaryType === 'reprimand') {
+                finalContent = `[NAGANA] ${noteContent.trim()}`;
+            } else if (disciplinaryType === 'promotion_block') {
+                if (!promotionBlockDays) {
+                    toast.error('Wybierz lub wpisz ilość dni blokady awansu');
+                    return;
+                }
+                finalContent = `[BLOKADA AWANSU - ${promotionBlockDays} DNI] ${noteContent.trim()}`;
+            } else if (disciplinaryType === 'financial_penalty') {
+                const amountText = penaltyAmount.trim() ? `$${penaltyAmount.trim()}` : 'brak kwoty';
+                finalContent = `[KARA FINANSOWA - ${amountText}] ${noteContent.trim()}`;
+            }
+        } else if (modalType === 'promotion') {
+            noteTypeToSave = 'promotion';
             if (!selectedRank) {
                 toast.error('Wybierz nowy stopień');
                 return;
             }
             finalContent = `${employee.firstName} ${employee.lastName} został/a awansowany/a na stopień ${selectedRank}`;
         } else if (modalType === 'demotion') {
+            noteTypeToSave = 'demotion';
             if (!selectedRank) {
                 toast.error('Wybierz nowy stopień po degradacji');
                 return;
             }
             finalContent = `${employee.firstName} ${employee.lastName} został/a zdegradowany/a na stopień ${selectedRank}`;
-        } else {
+        } else if (modalType === 'praise') {
+            noteTypeToSave = 'praise';
             if (!noteContent.trim()) {
                 toast.error('Wpisz treść uzasadnienia');
                 return;
@@ -291,7 +321,7 @@ export const EmployeeDetailsPage = () => {
         }
 
         const newNote: EmployeeNote = {
-            type: modalType,
+            type: noteTypeToSave,
             content: finalContent,
             author: authorName,
             createdAt: new Date().toISOString()
@@ -321,6 +351,9 @@ export const EmployeeDetailsPage = () => {
                 setModalType(null);
                 setNoteContent('');
                 setSelectedRank('');
+                setPenaltyAmount('');
+                setPromotionBlockDays('7');
+                setDisciplinaryType('reprimand');
             } else {
                 toast.error('Nie udało się dodać wpisu');
             }
@@ -570,14 +603,17 @@ export const EmployeeDetailsPage = () => {
                                 {canAddReprimands && (
                                     <div className="relative group">
                                         <button
-                                            onClick={() => setModalType('reprimand')}
+                                            onClick={() => {
+                                                setModalType('disciplinary');
+                                                setDisciplinaryType('reprimand');
+                                            }}
                                             className="w-8 h-8 rounded-lg bg-red-700 hover:bg-red-600 text-white flex items-center justify-center transition-colors shadow"
                                         >
-                                            <FontAwesomeIcon icon={faExclamationTriangle} className="text-xs" />
+                                            <FontAwesomeIcon icon={faGavel} className="text-xs" />
                                         </button>
                                         <div className="absolute bottom-full mb-2 hidden group-hover:flex flex-col items-center left-1/2 -translate-x-1/2 z-30 pointer-events-none">
                                             <div className="bg-stone-950 text-white text-[10px] font-medium px-2 py-1 rounded border border-stone-800 whitespace-nowrap shadow-xl">
-                                                Dodaj naganę
+                                                Dodaj karę dyscyplinarną
                                             </div>
                                             <div className="w-2 h-2 bg-stone-950 border-r border-b border-stone-800 transform rotate-45 -mt-1"></div>
                                         </div>
@@ -648,7 +684,7 @@ export const EmployeeDetailsPage = () => {
                                     if (item.type === 'reprimand') {
                                         borderColor = 'border-red-600/60 bg-red-950/20';
                                         badgeColor = 'bg-red-900/60 text-red-300 border border-red-700/50';
-                                        badgeText = 'Nagana';
+                                        badgeText = 'Kara Dyscyplinarna';
                                     } else if (item.type === 'praise') {
                                         borderColor = 'border-emerald-600/60 bg-emerald-950/20';
                                         badgeColor = 'bg-emerald-900/60 text-emerald-300 border border-emerald-700/50';
@@ -813,10 +849,10 @@ export const EmployeeDetailsPage = () => {
                     <DialogPanel className="bg-stone-900 rounded-xl shadow-2xl w-full max-w-lg border border-stone-800 p-6">
                         <div className="flex items-center justify-between border-b border-stone-800 pb-3 mb-4">
                             <DialogTitle className="text-lg font-bold text-white flex items-center gap-2">
-                                {modalType === 'reprimand' && (
+                                {modalType === 'disciplinary' && (
                                     <>
-                                        <FontAwesomeIcon icon={faExclamationTriangle} className="text-red-500" />
-                                        <span>Dodaj Naganę</span>
+                                        <FontAwesomeIcon icon={faGavel} className="text-red-500" />
+                                        <span>Dodaj Karę Dyscyplinarną</span>
                                     </>
                                 )}
                                 {modalType === 'praise' && (
@@ -844,7 +880,89 @@ export const EmployeeDetailsPage = () => {
                         </div>
 
                         <form onSubmit={handleAddNoteEntry} className="space-y-4">
-                            {modalType === 'promotion' || modalType === 'demotion' ? (
+                            {modalType === 'disciplinary' && (
+                                <>
+                                    <div>
+                                        <label className="block text-xs font-medium text-stone-300 mb-1">
+                                            Typ kary dyscyplinarnej
+                                        </label>
+                                        <select
+                                            value={disciplinaryType}
+                                            onChange={e => setDisciplinaryType(e.target.value as any)}
+                                            className="w-full bg-stone-800 border border-stone-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-red-500"
+                                        >
+                                            <option value="reprimand">Nagana</option>
+                                            <option value="promotion_block">Blokada awansu</option>
+                                            <option value="financial_penalty">Kara finansowa</option>
+                                        </select>
+                                    </div>
+
+                                    {disciplinaryType === 'promotion_block' && (
+                                        <div>
+                                            <label className="block text-xs font-medium text-stone-300 mb-1 flex items-center gap-1.5">
+                                                <FontAwesomeIcon icon={faBan} className="text-red-400" /> Okres blokady awansu (w dniach)
+                                            </label>
+                                            <div className="flex items-center gap-2">
+                                                <select
+                                                    value={['7', '14', '30', '60'].includes(promotionBlockDays) ? promotionBlockDays : 'custom'}
+                                                    onChange={e => {
+                                                        if (e.target.value !== 'custom') {
+                                                            setPromotionBlockDays(e.target.value);
+                                                        }
+                                                    }}
+                                                    className="bg-stone-800 border border-stone-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-red-500"
+                                                >
+                                                    <option value="7">7 dni</option>
+                                                    <option value="14">14 dni</option>
+                                                    <option value="30">30 dni</option>
+                                                    <option value="60">60 dni</option>
+                                                    <option value="custom">Inna wartość...</option>
+                                                </select>
+                                                <input
+                                                    type="number"
+                                                    min="1"
+                                                    value={promotionBlockDays}
+                                                    onChange={e => setPromotionBlockDays(e.target.value)}
+                                                    placeholder="Wpisz dni"
+                                                    className="w-full bg-stone-800 border border-stone-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-red-500"
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {disciplinaryType === 'financial_penalty' && (
+                                        <div>
+                                            <label className="block text-xs font-medium text-stone-300 mb-1 flex items-center gap-1.5">
+                                                <FontAwesomeIcon icon={faDollarSign} className="text-emerald-400" /> Kwota kary ($)
+                                            </label>
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                value={penaltyAmount}
+                                                onChange={e => setPenaltyAmount(e.target.value)}
+                                                placeholder="Wpisz kwotę kary..."
+                                                className="w-full bg-stone-800 border border-stone-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-red-500"
+                                            />
+                                        </div>
+                                    )}
+
+                                    <div>
+                                        <label className="block text-xs font-medium text-stone-300 mb-1">
+                                            Opis / Uzasadnienie
+                                        </label>
+                                        <textarea
+                                            rows={4}
+                                            value={noteContent}
+                                            onChange={e => setNoteContent(e.target.value)}
+                                            placeholder="Podaj szczegółowy powód i opis kary..."
+                                            required
+                                            className="w-full bg-stone-800 border border-stone-700 text-white rounded-lg p-3 text-sm outline-none focus:border-stone-500 resize-none"
+                                        />
+                                    </div>
+                                </>
+                            )}
+
+                            {(modalType === 'promotion' || modalType === 'demotion') && (
                                 <div>
                                     <label className="block text-xs font-medium text-stone-300 mb-1">
                                         Wybierz nowy stopień z bazy
@@ -861,7 +979,9 @@ export const EmployeeDetailsPage = () => {
                                         ))}
                                     </select>
                                 </div>
-                            ) : (
+                            )}
+
+                            {modalType === 'praise' && (
                                 <div>
                                     <label className="block text-xs font-medium text-stone-300 mb-1">
                                         Opis / Uzasadnienie
@@ -870,7 +990,7 @@ export const EmployeeDetailsPage = () => {
                                         rows={4}
                                         value={noteContent}
                                         onChange={e => setNoteContent(e.target.value)}
-                                        placeholder={modalType === 'reprimand' ? 'Podaj powód udzielenia nagany...' : 'Podaj powód udzielenia pochwały...'}
+                                        placeholder="Podaj powód udzielenia pochwały..."
                                         required
                                         className="w-full bg-stone-800 border border-stone-700 text-white rounded-lg p-3 text-sm outline-none focus:border-stone-500 resize-none"
                                     />
@@ -893,7 +1013,7 @@ export const EmployeeDetailsPage = () => {
                                     type="submit"
                                     disabled={submittingNote}
                                     className={`px-4 py-2 text-white font-medium rounded-lg text-sm transition-colors disabled:opacity-50 ${
-                                        modalType === 'reprimand' ? 'bg-red-700 hover:bg-red-600' :
+                                        modalType === 'disciplinary' ? 'bg-red-700 hover:bg-red-600' :
                                             modalType === 'praise' ? 'bg-emerald-700 hover:bg-emerald-600' :
                                                 modalType === 'promotion' ? 'bg-blue-700 hover:bg-blue-600' : 'bg-purple-700 hover:bg-purple-600'
                                     }`}

@@ -55,6 +55,9 @@ async function getEmptyPermissions(): Promise<IPermissions> {
         canAddStructure: false,
         canRemoveStructure: false,
         canEditStructure: false,
+        hasMDTAccess: false,
+        canEditUnitType: false,
+        canEditStatus: false,
     };
 }
 

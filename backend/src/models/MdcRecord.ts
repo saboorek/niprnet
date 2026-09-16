@@ -6,6 +6,7 @@ export interface IMdcRecord extends Document {
     characterId: Types.ObjectId;
     type: MdcRecordType;
     description: string;
+    amount?: number;
     createdBy: string;
     createdAt: Date;
 }
@@ -19,6 +20,7 @@ const mdcRecordSchema = new Schema<IMdcRecord>(
             required: true
         },
         description: { type: String, required: true },
+        amount: { type: Number, required: false },
         createdBy: { type: String, required: true, default: 'System' },
     },
     { timestamps: true }

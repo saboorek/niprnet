@@ -3,8 +3,10 @@ import type { ReactNode } from "react";
 import type { Permissions } from "../types/permissions";
 import config from "../utils/config";
 
-interface Character {
+// Dodano opcjonalne pole 'id', aby TypeScript nie zgłaszał błędu TS2339
+export interface Character {
     _id: string;
+    id?: string;
     firstName: string;
     lastName: string;
     roles: string[];
@@ -27,22 +29,26 @@ export const CharacterProvider = ({ children }: { children: ReactNode }) => {
     const [selectedCharacter, setSelectedCharacter] = useState<Character | null>(null);
     const [loading, setLoading] = useState(true);
     const isSelectingRef = useRef(false);
+    const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const refresh = async () => {
         if (isSelectingRef.current) return;
 
         try {
             const data = await fetch(`${config.URL}/auth/session`, { credentials: 'include' })
-                .then(r => r.ok ? r.json() : null)
+                .then(r => (r.ok ? r.json() : null))
                 .catch(() => null);
 
             if (isSelectingRef.current) return;
 
             if (data?.activeCharacter) {
                 const ac = data.activeCharacter;
+                const charId = ac._id || ac.id;
+
                 const normalizedChar: Character = {
                     ...ac,
-                    _id: ac._id ?? ac.id,
+                    _id: charId,
+                    id: charId,
                 };
 
                 setSelectedCharacter(prev => {
@@ -63,7 +69,10 @@ export const CharacterProvider = ({ children }: { children: ReactNode }) => {
         refresh().finally(() => setLoading(false));
 
         const interval = setInterval(refresh, 10_000);
-        return () => clearInterval(interval);
+        return () => {
+            clearInterval(interval);
+            if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        };
     }, []);
 
     const handleSelectCharacter = async (char: Character) => {
@@ -71,21 +80,28 @@ export const CharacterProvider = ({ children }: { children: ReactNode }) => {
         try {
             setSelectedCharacter(char);
 
+            const charId = char._id || char.id;
             const res = await fetch(`${config.URL}/characters/select`, {
                 method: 'POST',
                 credentials: 'include',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ characterId: char._id }),
+                body: JSON.stringify({ characterId: charId }),
             });
 
             if (res.ok) {
                 const data = await res.json();
-                setSelectedCharacter({ ...data, _id: data._id ?? data.id });
+                const fetchedId = data._id || data.id;
+                setSelectedCharacter({
+                    ...data,
+                    _id: fetchedId,
+                    id: fetchedId,
+                });
             }
         } catch (err) {
             console.error('[CharacterContext] Błąd podczas wyboru postaci:', err);
         } finally {
-            setTimeout(() => {
+            if (timeoutRef.current) clearTimeout(timeoutRef.current);
+            timeoutRef.current = setTimeout(() => {
                 isSelectingRef.current = false;
             }, 1000);
         }
@@ -100,18 +116,20 @@ export const CharacterProvider = ({ children }: { children: ReactNode }) => {
     };
 
     const updateCharacter = (partial: Partial<Character>) => {
-        setSelectedCharacter(prev => prev ? { ...prev, ...partial } : prev);
+        setSelectedCharacter(prev => (prev ? { ...prev, ...partial } : prev));
     };
 
     return (
-        <CharacterContext.Provider value={{
-            selectedCharacter,
-            setSelectedCharacter: handleSelectCharacter,
-            clearCharacter,
-            updateCharacter,
-            refreshPermissions: refresh,
-            loading,
-        }}>
+        <CharacterContext.Provider
+            value={{
+                selectedCharacter,
+                setSelectedCharacter: handleSelectCharacter,
+                clearCharacter,
+                updateCharacter,
+                refreshPermissions: refresh,
+                loading,
+            }}
+        >
             {children}
         </CharacterContext.Provider>
     );

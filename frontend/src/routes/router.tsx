@@ -11,8 +11,9 @@ import { EmployeeDetailsPage } from '../pages/hrd/EmployeeDetailsPage';
 import { DbidsPage } from '../pages/sfs/DbidsPage';
 import { AbsencesPage } from '../pages/hrd/AbsencesPage.tsx';
 import { StructurePage } from '../pages/hrd/StructurePage';
-import {ReportsPage} from "../pages/sfs/ReportPage.tsx";
-import {MdcPage} from "../pages/sfs/MdcPage.tsx";
+import { ReportsPage } from "../pages/sfs/ReportPage.tsx";
+import { MdcPage } from "../pages/mdt/MdcPage.tsx";
+import { CadPage } from "../pages/mdt/CadPage.tsx";
 
 export const router = createBrowserRouter([
     {
@@ -42,7 +43,9 @@ export const router = createBrowserRouter([
                     { path: '/hrd/absences', element: <AbsencesPage/> },
                     { path: '/sfs/dbids', element: <DbidsPage /> },
                     { path: `/sfs/reports`, element: <ReportsPage /> },
-                    { path: `/sfs/mdc`, element: <MdcPage /> },
+                    { path: `/mdt/mdc`, element: <MdcPage /> },
+                    { path: `/mdt/cad`, element: <CadPage />}
+
                 ],
             },
         ],

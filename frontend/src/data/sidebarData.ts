@@ -59,7 +59,14 @@ export const sidebarItems: SidebarItemDef[] = [
         children: [
             { href: '/sfs/dbids', title: 'DBIDS', icon: faIdCard, permission: 'hasDBIDSAccess' },
             { href: '/sfs/reports', title: 'Raporty', icon: faRectangleList, permission: 'hasReportAccess' },
-            { href: '/sfs/mdc', title: 'MDC', icon: faWindowRestore, permission: 'hasReportAccess' },
+        ],
+    },
+    {
+        type: 'section',
+        title: 'Mobile Data Terminal',
+        children: [
+            { href: '/mdt/cad', title: 'CAD', icon: faWindowRestore, permission: 'hasReportAccess' },
+            { href: '/mdt/mdc', title: 'MDC', icon: faWindowRestore, permission: 'hasReportAccess' },
         ],
     },
 ];
